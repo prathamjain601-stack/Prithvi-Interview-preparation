@@ -1,0 +1,131 @@
+import { useState } from "react";
+import DashboardLayout from "@/components/DashboardLayout";
+import { BookOpen, FileText, Briefcase, Upload, ChevronDown, ChevronUp } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+
+type PrepMode = null | "theory" | "resume" | "jd";
+
+const sampleQuestions = [
+  { q: "Explain the difference between a stack and a queue.", a: "A stack follows LIFO (Last In, First Out) while a queue follows FIFO (First In, First Out). Stacks are used in function call management, undo operations, while queues are used in task scheduling, BFS.", difficulty: "easy" },
+  { q: "What is the time complexity of quicksort in the worst case?", a: "O(n²) — occurs when the pivot selection is poor, such as always picking the smallest or largest element. Average case is O(n log n).", difficulty: "medium" },
+  { q: "Design a rate limiter for an API gateway.", a: "Use a sliding window algorithm with a distributed cache (Redis). Track request counts per user/IP within time windows. Implement token bucket or leaky bucket for different use cases.", difficulty: "hard" },
+];
+
+const Prepare = () => {
+  const [mode, setMode] = useState<PrepMode>(null);
+  const [expandedQ, setExpandedQ] = useState<number | null>(null);
+
+  const modes = [
+    { key: "theory" as const, icon: BookOpen, title: "Theory-Based", desc: "Practice core CS concepts and fundamentals", color: "bg-primary/10 text-primary" },
+    { key: "resume" as const, icon: FileText, title: "Resume-Based", desc: "Get questions tailored to your experience", color: "bg-accent/10 text-accent" },
+    { key: "jd" as const, icon: Briefcase, title: "JD-Based", desc: "Prepare for a specific job description", color: "bg-purple-100 text-purple-600" },
+  ];
+
+  return (
+    <DashboardLayout>
+      <div className="space-y-8">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Preparation</h1>
+          <p className="text-muted-foreground mt-1">Choose how you want to prepare for your interviews.</p>
+        </div>
+
+        {/* Mode selection */}
+        <div className="grid md:grid-cols-3 gap-4">
+          {modes.map(m => (
+            <button
+              key={m.key}
+              onClick={() => setMode(m.key)}
+              className={`glass-card p-6 text-left transition-all duration-300 hover:-translate-y-1 ${mode === m.key ? "ring-2 ring-primary" : ""}`}
+            >
+              <div className={`w-12 h-12 rounded-xl ${m.color} flex items-center justify-center mb-4`}>
+                <m.icon className="w-6 h-6" />
+              </div>
+              <h3 className="font-semibold text-foreground mb-1">{m.title}</h3>
+              <p className="text-sm text-muted-foreground">{m.desc}</p>
+            </button>
+          ))}
+        </div>
+
+        {/* Dynamic content based on mode */}
+        {mode && (
+          <div className="space-y-6 animate-fade-up">
+            {/* Filters / Upload */}
+            <div className="glass-card p-6 space-y-4">
+              <h3 className="font-semibold text-foreground">
+                {mode === "theory" ? "Select Topics" : mode === "resume" ? "Upload Resume" : "Paste Job Description"}
+              </h3>
+
+              {mode === "theory" && (
+                <div className="flex flex-wrap gap-2">
+                  {["Data Structures", "Algorithms", "System Design", "OOP", "Databases", "Networking"].map(topic => (
+                    <button key={topic} className="px-4 py-2 rounded-xl text-sm border border-border hover:border-primary hover:bg-primary/5 text-foreground transition-colors">
+                      {topic}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {mode === "resume" && (
+                <div className="border-2 border-dashed border-border rounded-2xl p-10 text-center hover:border-primary/50 transition-colors">
+                  <Upload className="w-8 h-8 mx-auto text-muted-foreground mb-3" />
+                  <p className="text-sm text-muted-foreground">Drag & drop your resume here, or click to browse</p>
+                  <p className="text-xs text-muted-foreground/60 mt-1">PDF, DOCX up to 5MB</p>
+                </div>
+              )}
+
+              {mode === "jd" && (
+                <textarea
+                  className="w-full h-32 rounded-xl border border-border bg-background p-4 text-sm focus:ring-2 focus:ring-primary focus:border-transparent resize-none"
+                  placeholder="Paste the job description here..."
+                />
+              )}
+
+              <div className="flex flex-wrap gap-3 items-center">
+                <select className="px-4 py-2 rounded-xl border border-border bg-background text-sm">
+                  <option>All Difficulties</option>
+                  <option>Easy</option>
+                  <option>Medium</option>
+                  <option>Hard</option>
+                </select>
+                <Input placeholder="Filter by role..." className="max-w-xs h-10 rounded-xl" />
+                <Button className="btn-gradient text-sm px-6 py-2 h-auto">Generate Questions</Button>
+              </div>
+            </div>
+
+            {/* Questions */}
+            <div className="space-y-3">
+              <h3 className="font-semibold text-foreground">Generated Questions</h3>
+              {sampleQuestions.map((q, i) => (
+                <div key={i} className="glass-card overflow-hidden">
+                  <button
+                    onClick={() => setExpandedQ(expandedQ === i ? null : i)}
+                    className="w-full flex items-center justify-between p-5 text-left"
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm font-medium text-muted-foreground w-6">Q{i + 1}</span>
+                      <span className="text-sm font-medium text-foreground">{q.q}</span>
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0 ml-4">
+                      <span className={q.difficulty === "easy" ? "tag-easy" : q.difficulty === "medium" ? "tag-medium" : "tag-hard"}>
+                        {q.difficulty}
+                      </span>
+                      {expandedQ === i ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+                    </div>
+                  </button>
+                  {expandedQ === i && (
+                    <div className="px-5 pb-5 pt-0 border-t border-border">
+                      <p className="text-sm text-muted-foreground leading-relaxed mt-4">{q.a}</p>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </DashboardLayout>
+  );
+};
+
+export default Prepare;
