@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
+import { UserButton, SignOutButton } from "@clerk/clerk-react";
 
 const navItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
@@ -61,6 +62,11 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
         </nav>
 
         <div className="p-3 border-t border-sidebar-border space-y-1">
+          <div className={cn("flex items-center gap-3 px-3 py-2.5 transition-all", collapsed ? "justify-center" : "")}>
+            <UserButton afterSignOutUrl="/" />
+            {!collapsed && <span className="text-sm font-medium text-sidebar-foreground">Profile</span>}
+          </div>
+          
           <button
             onClick={() => setCollapsed(!collapsed)}
             className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
@@ -68,10 +74,13 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
             {collapsed ? <ChevronRight className="w-4 h-4 shrink-0" /> : <ChevronLeft className="w-4 h-4 shrink-0" />}
             {!collapsed && <span>Collapse</span>}
           </button>
-          <Link to="/" className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-sidebar-foreground hover:bg-sidebar-accent transition-colors">
-            <LogOut className="w-4 h-4 shrink-0" />
-            {!collapsed && <span>Log out</span>}
-          </Link>
+          
+          <SignOutButton>
+            <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-sidebar-foreground hover:bg-sidebar-accent transition-colors">
+              <LogOut className="w-4 h-4 shrink-0" />
+              {!collapsed && <span>Log out</span>}
+            </button>
+          </SignOutButton>
         </div>
       </aside>
 

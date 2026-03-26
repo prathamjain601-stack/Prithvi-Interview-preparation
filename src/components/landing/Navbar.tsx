@@ -26,9 +26,6 @@ const Navbar = () => {
           <Link to="/login">
             <Button variant="ghost" size="sm">Log in</Button>
           </Link>
-          <Link to="/signup">
-            <Button size="sm" className="btn-gradient text-sm px-4 py-2">Get Started</Button>
-          </Link>
         </div>
 
         <button className="md:hidden" onClick={() => setMobileOpen(!mobileOpen)}>
@@ -42,7 +39,6 @@ const Navbar = () => {
           <a href="#testimonials" className="block text-sm text-muted-foreground">Testimonials</a>
           <div className="flex gap-2 pt-2">
             <Link to="/login"><Button variant="ghost" size="sm">Log in</Button></Link>
-            <Link to="/signup"><Button size="sm" className="btn-gradient text-sm px-4 py-2">Get Started</Button></Link>
           </div>
         </div>
       )}

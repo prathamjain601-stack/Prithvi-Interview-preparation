@@ -1,3 +1,6 @@
+import { useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { useUser } from "@clerk/clerk-react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { BookOpen, FileCheck, Bot, TrendingUp, Clock, Target, ArrowRight } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -15,12 +18,23 @@ const recentActivity = [
 ];
 
 const Dashboard = () => {
+  const { user, isLoaded } = useUser();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (isLoaded && user && !user.unsafeMetadata?.onboarded) {
+      navigate("/onboarding");
+    }
+  }, [isLoaded, user, navigate]);
+
+  if (!isLoaded || !user) return null;
+
   return (
     <DashboardLayout>
       <div className="space-y-8">
         {/* Welcome */}
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Welcome back, Alex 👋</h1>
+          <h1 className="text-2xl font-bold text-foreground">Welcome back, {user.firstName || "User"} 👋</h1>
           <p className="text-muted-foreground mt-1">Here's an overview of your interview preparation journey.</p>
         </div>
 

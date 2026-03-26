@@ -27,14 +27,8 @@ const HeroSection = () => {
             </p>
 
             <div className="flex flex-wrap gap-4 animate-fade-up" style={{ animationDelay: '0.3s' }}>
-              <Link to="/signup">
-                <Button className="btn-gradient text-base px-8 py-3.5 h-auto">
-                  Get Started Free
-                  <ArrowRight className="ml-2 w-4 h-4" />
-                </Button>
-              </Link>
               <Link to="/dashboard">
-                <Button variant="outline" className="h-auto px-8 py-3.5 text-base border-primary-foreground/20 text-primary-foreground/80 hover:bg-primary-foreground/10 hover:text-primary-foreground rounded-xl">
+                <Button className="h-auto px-8 py-3.5 text-base bg-primary-foreground/10 border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/20 rounded-xl transition-all">
                   <Play className="mr-2 w-4 h-4" />
                   Try Demo
                 </Button>
