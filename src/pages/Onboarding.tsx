@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useUser } from "@clerk/clerk-react";
 import { Brain, User, Calendar, Briefcase, ChevronRight } from "lucide-react";
@@ -7,42 +7,63 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
+import { supabase } from "@/lib/supabase";
 
 const Onboarding = () => {
   const { user, isLoaded } = useUser();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
-    name: user?.fullName || "",
+    name: "",
     age: "",
     experience: "",
   });
+
+  useEffect(() => {
+    if (isLoaded && user) {
+      setFormData(prev => ({ ...prev, name: user.fullName || "" }));
+    }
+  }, [isLoaded, user]);
 
   if (!isLoaded) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.name || !formData.age || !formData.experience) {
-      toast.error("Please fill in all fields");
+    
+    // Strict mandatory check
+    if (!formData.name.trim() || !formData.age || !formData.experience) {
+      toast.error("All fields are mandatory. Please fill them out to continue.");
       return;
     }
 
     setLoading(true);
     try {
-      // Save to Clerk's unsafeMetadata for now
+      // 1. Save to Supabase
+      const { error: supabaseError } = await supabase
+        .from('profiles')
+        .upsert({
+          id: user?.id, // Clerk User ID (string)
+          name: formData.name,
+          age: formData.age,
+          experience: formData.experience,
+          onboarded: true,
+          updated_at: new Date().toISOString(),
+        });
+
+      if (supabaseError) throw supabaseError;
+
+      // 2. Update Clerk Metadata (for frontend flags)
       await user?.update({
         unsafeMetadata: {
           onboarded: true,
-          age: formData.age,
-          experience: formData.experience,
         },
       });
       
-      toast.success("Profile completed!");
+      toast.success("Profile completed and saved!");
       navigate("/dashboard");
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
-      toast.error("Something went wrong. Please try again.");
+      toast.error(error.message || "Something went wrong. Please try again.");
     } finally {
       setLoading(false);
     }

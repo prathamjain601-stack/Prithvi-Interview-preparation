@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { ArrowRight, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { SignedIn, SignedOut } from "@clerk/clerk-react";
 import heroIllustration from "@/assets/hero-illustration.jpg";
 
 const HeroSection = () => {
@@ -27,12 +28,22 @@ const HeroSection = () => {
             </p>
 
             <div className="flex flex-wrap gap-4 animate-fade-up" style={{ animationDelay: '0.3s' }}>
-              <Link to="/dashboard">
-                <Button className="h-auto px-8 py-3.5 text-base bg-primary-foreground/10 border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/20 rounded-xl transition-all">
-                  <Play className="mr-2 w-4 h-4" />
-                  Try Demo
-                </Button>
-              </Link>
+              <SignedOut>
+                <Link to="/dashboard">
+                  <Button className="h-auto px-8 py-3.5 text-base bg-primary-foreground/10 border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/20 rounded-xl transition-all">
+                    <Play className="mr-2 w-4 h-4" />
+                    Try Demo
+                  </Button>
+                </Link>
+              </SignedOut>
+              <SignedIn>
+                <Link to="/dashboard">
+                  <Button className="btn-gradient text-base px-8 py-3.5 h-auto">
+                    Go to Dashboard
+                    <ArrowRight className="ml-2 w-4 h-4" />
+                  </Button>
+                </Link>
+              </SignedIn>
             </div>
 
             <div className="flex items-center gap-6 pt-4 animate-fade-up" style={{ animationDelay: '0.4s' }}>

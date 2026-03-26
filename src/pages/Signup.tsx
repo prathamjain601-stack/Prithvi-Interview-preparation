@@ -22,6 +22,7 @@ const Signup = () => {
             routing="path" 
             path="/signup" 
             signInUrl="/login"
+            forceRedirectUrl="/dashboard"
             appearance={{
               elements: {
                 rootBox: "w-full",

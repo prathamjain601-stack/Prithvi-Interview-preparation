@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { Brain, Menu, X } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { SignedIn, SignedOut } from "@clerk/clerk-react";
 
 const Navbar = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -23,9 +24,16 @@ const Navbar = () => {
         </div>
 
         <div className="hidden md:flex items-center gap-3">
-          <Link to="/login">
-            <Button variant="ghost" size="sm">Log in</Button>
-          </Link>
+          <SignedOut>
+            <Link to="/login">
+              <Button variant="ghost" size="sm">Log in</Button>
+            </Link>
+          </SignedOut>
+          <SignedIn>
+            <Link to="/dashboard">
+              <Button variant="ghost" size="sm">Dashboard</Button>
+            </Link>
+          </SignedIn>
         </div>
 
         <button className="md:hidden" onClick={() => setMobileOpen(!mobileOpen)}>
@@ -38,7 +46,12 @@ const Navbar = () => {
           <a href="#features" className="block text-sm text-muted-foreground">Features</a>
           <a href="#testimonials" className="block text-sm text-muted-foreground">Testimonials</a>
           <div className="flex gap-2 pt-2">
-            <Link to="/login"><Button variant="ghost" size="sm">Log in</Button></Link>
+            <SignedOut>
+              <Link to="/login"><Button variant="ghost" size="sm">Log in</Button></Link>
+            </SignedOut>
+            <SignedIn>
+              <Link to="/dashboard"><Button variant="ghost" size="sm">Dashboard</Button></Link>
+            </SignedIn>
           </div>
         </div>
       )}
