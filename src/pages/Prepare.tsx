@@ -15,24 +15,57 @@ interface Question {
   topics: string[];
 }
 
-const ALL_TOPICS = [
-  "Web Dev", "DSA", "ML", "AI", "Cyber Security", "IoT", 
-  "DBMS", "CN", "CNS", "DevOps", "MLOps", 
-  "Programming Languages", "System Design", "OOP"
+const TOPIC_DATA = [
+  {
+    id: "Web Dev",
+    subtopics: [
+      "HTML5", "CSS3", "Flexbox", "Grid", "JavaScript (ES6+)", "React", "Angular", "Vue.js", "Next.js", "Svelte", "Tailwind CSS", "Bootstrap", "Sass", "SCSS", "Redux", "Zustand", "Recoil", "Node.js", "Express.js", "NestJS", "Django", "Flask", "Spring Boot", "Ruby on Rails", "ASP.NET Core", "MySQL", "PostgreSQL", "MongoDB", "Redis", "REST APIs", "GraphQL", "WebSockets", "Amazon Web Services", "Google Cloud Platform", "Microsoft Azure", "Docker", "Kubernetes", "GitHub Actions", "Jenkins", "Git", "GitHub", "GitLab", "JWT", "OAuth", "Firebase Authentication", "Webpack", "Vite", "npm", "yarn", "pnpm", "JAMstack", "Serverless", "Microservices", "Progressive Web Apps (PWA)", "Web3", "MERN Stack", "PERN Stack"
+    ]
+  },
+  { id: "DSA", subtopics: [] },
+  { id: "ML", subtopics: [] },
+  { id: "AI", subtopics: [] },
+  { id: "Cyber Security", subtopics: [] },
+  { id: "IoT", subtopics: [] },
+  { id: "DBMS", subtopics: [] },
+  { id: "CN", subtopics: [] },
+  { id: "CNS", subtopics: [] },
+  { id: "DevOps", subtopics: [] },
+  { id: "MLOps", subtopics: [] },
+  { id: "Programming Languages", subtopics: [] },
+  { id: "System Design", subtopics: [] },
+  { id: "OOP", subtopics: [] },
 ];
 
 const Prepare = () => {
   const [mode, setMode] = useState<PrepMode>(null);
   const [expandedQ, setExpandedQ] = useState<number | null>(null);
   const [selectedTopics, setSelectedTopics] = useState<string[]>([]);
+  const [selectedSubtopics, setSelectedSubtopics] = useState<Record<string, string[]>>({});
   const [questions, setQuestions] = useState<Question[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [difficulty, setDifficulty] = useState("All Difficulties");
 
-  const toggleTopic = (topic: string) => {
-    setSelectedTopics(prev => 
-      prev.includes(topic) ? prev.filter(t => t !== topic) : [...prev, topic]
-    );
+  const toggleTopic = (topicId: string) => {
+    setSelectedTopics(prev => {
+      if (prev.includes(topicId)) {
+        const newSubtopics = { ...selectedSubtopics };
+        delete newSubtopics[topicId];
+        setSelectedSubtopics(newSubtopics);
+        return prev.filter(t => t !== topicId);
+      }
+      return [...prev, topicId];
+    });
+  };
+
+  const toggleSubtopic = (topicId: string, sub: string) => {
+    setSelectedSubtopics(prev => {
+      const current = prev[topicId] || [];
+      const updated = current.includes(sub)
+        ? current.filter(s => s !== sub)
+        : [...current, sub];
+      return { ...prev, [topicId]: updated };
+    });
   };
 
   const handleGenerateTheoryQuestions = async () => {
@@ -45,7 +78,18 @@ const Prepare = () => {
     setQuestions([]);
     
     try {
-      const prompt = `You are an expert technical interviewer at a top tech company (e.g., FAANG). Generate 10 highly realistic, practical interview questions based on the following topics: ${selectedTopics.join(", ")}. Difficulty level: ${difficulty}. 
+      let topicStringParts = [];
+      for (const t of selectedTopics) {
+        const subs = selectedSubtopics[t] || [];
+        if (subs.length > 0) {
+          topicStringParts.push(`${t} (specifically focusing on: ${subs.join(", ")})`);
+        } else {
+          topicStringParts.push(t);
+        }
+      }
+      const topicsForPrompt = topicStringParts.join("; ");
+
+      const prompt = `You are an expert technical interviewer at a top tech company (e.g., FAANG). Generate 10 highly realistic, practical interview questions based on the following topics: ${topicsForPrompt}. Difficulty level: ${difficulty}. 
       
 Make sure these are the EXACT types of questions asked in real industry interviews right now. Keep the detailed answers extremely concise and straight to the point to save time. 
 
@@ -126,20 +170,48 @@ Return the output STRICTLY as a JSON array of objects with the exact keys: "q" (
               </h3>
 
               {mode === "theory" && (
-                <div className="flex flex-wrap gap-2">
-                  {ALL_TOPICS.map(topic => (
-                    <button 
-                      key={topic} 
-                      onClick={() => toggleTopic(topic)}
-                      className={`px-4 py-2 rounded-xl text-sm border transition-colors ${
-                        selectedTopics.includes(topic)
-                          ? "border-primary bg-primary/10 text-primary"
-                          : "border-border hover:border-primary hover:bg-primary/5 text-foreground"
-                      }`}
-                    >
-                      {topic}
-                    </button>
-                  ))}
+                <div className="space-y-4">
+                  <div className="flex flex-wrap gap-2">
+                    {TOPIC_DATA.map(topicObj => (
+                      <button 
+                        key={topicObj.id} 
+                        onClick={() => toggleTopic(topicObj.id)}
+                        className={`px-4 py-2 rounded-xl text-sm border transition-colors ${
+                          selectedTopics.includes(topicObj.id)
+                            ? "border-primary bg-primary/10 text-primary"
+                            : "border-border hover:border-primary hover:bg-primary/5 text-foreground bg-background"
+                        }`}
+                      >
+                        {topicObj.id}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Render Subtopics for selected topics */}
+                  {selectedTopics.map(tId => {
+                    const tData = TOPIC_DATA.find(d => d.id === tId);
+                    if (!tData || tData.subtopics.length === 0) return null;
+                    return (
+                      <div key={tId} className="p-4 rounded-xl bg-muted/30 border border-border mt-2 animate-fade-in">
+                        <h4 className="text-xs font-semibold uppercase tracking-wider mb-3 text-muted-foreground">{tId} Subtopics</h4>
+                        <div className="flex flex-wrap gap-2 max-h-48 overflow-y-auto pr-2">
+                          {tData.subtopics.map(sub => (
+                            <button 
+                              key={sub}
+                              onClick={() => toggleSubtopic(tId, sub)}
+                              className={`px-3 py-1.5 rounded-lg text-xs border transition-colors ${
+                                (selectedSubtopics[tId] || []).includes(sub)
+                                  ? "border-primary bg-primary/10 text-primary"
+                                  : "border-border hover:border-primary/50 text-muted-foreground hover:text-foreground bg-background"
+                              }`}
+                            >
+                              {sub}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
 
