@@ -4,6 +4,7 @@ import { BookOpen, FileText, Briefcase, Upload, ChevronDown, ChevronUp, Loader2 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
+import ReactMarkdown from "react-markdown";
 
 type PrepMode = null | "theory" | "resume" | "jd";
 
@@ -11,6 +12,7 @@ interface Question {
   q: string;
   a: string;
   difficulty: "easy" | "medium" | "hard";
+  topics: string[];
 }
 
 const ALL_TOPICS = [
@@ -43,7 +45,11 @@ const Prepare = () => {
     setQuestions([]);
     
     try {
-      const prompt = `You are an expert technical interviewer. Generate 20 interview questions based on the following topics: ${selectedTopics.join(", ")}. Difficulty level: ${difficulty}. Return the output STRICTLY as a JSON array of objects with the exact keys: "q" (the question), "a" (the detailed answer), "difficulty" ("easy", "medium", or "hard"). Do not include any markdown formatting like \`\`\`json, just the pure JSON array.`;
+      const prompt = `You are an expert technical interviewer at a top tech company (e.g., FAANG). Generate 10 highly realistic, practical interview questions based on the following topics: ${selectedTopics.join(", ")}. Difficulty level: ${difficulty}. 
+      
+Make sure these are the EXACT types of questions asked in real industry interviews right now. Keep the detailed answers extremely concise and straight to the point to save time. 
+
+Return the output STRICTLY as a JSON array of objects with the exact keys: "q" (the question), "a" (the concise answer formatting with markdown), "difficulty" ("easy", "medium", or "hard"), and "topics" (an array of strings indicating which topics the question is based on, e.g. ["Web Dev", "ML"]). Do not include any markdown formatting like \`\`\`json, just the pure JSON array.`;
 
       const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${import.meta.env.VITE_GEMINI_API_KEY}`, {
         method: "POST",
@@ -201,7 +207,16 @@ const Prepare = () => {
                     </button>
                     {expandedQ === i && (
                       <div className="px-5 pb-5 pt-0 border-t border-border">
-                        <p className="text-sm text-muted-foreground leading-relaxed mt-4">{q.a}</p>
+                        <div className="flex flex-wrap gap-2 mt-4 mb-3">
+                          {q.topics?.map(topic => (
+                            <span key={topic} className="px-2 py-1 text-xs rounded-md bg-secondary/50 text-secondary-foreground border border-border">
+                              {topic}
+                            </span>
+                          ))}
+                        </div>
+                        <div className="prose prose-sm dark:prose-invert max-w-none text-muted-foreground leading-relaxed mt-4">
+                          <ReactMarkdown>{q.a}</ReactMarkdown>
+                        </div>
                       </div>
                     )}
                   </div>
