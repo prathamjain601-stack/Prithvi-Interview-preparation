@@ -1,20 +1,83 @@
 import { useState } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
-import { BookOpen, FileText, Briefcase, Upload, ChevronDown, ChevronUp } from "lucide-react";
+import { BookOpen, FileText, Briefcase, Upload, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { toast } from "sonner";
 
 type PrepMode = null | "theory" | "resume" | "jd";
 
-const sampleQuestions = [
-  { q: "Explain the difference between a stack and a queue.", a: "A stack follows LIFO (Last In, First Out) while a queue follows FIFO (First In, First Out). Stacks are used in function call management, undo operations, while queues are used in task scheduling, BFS.", difficulty: "easy" },
-  { q: "What is the time complexity of quicksort in the worst case?", a: "O(n²) — occurs when the pivot selection is poor, such as always picking the smallest or largest element. Average case is O(n log n).", difficulty: "medium" },
-  { q: "Design a rate limiter for an API gateway.", a: "Use a sliding window algorithm with a distributed cache (Redis). Track request counts per user/IP within time windows. Implement token bucket or leaky bucket for different use cases.", difficulty: "hard" },
+interface Question {
+  q: string;
+  a: string;
+  difficulty: "easy" | "medium" | "hard";
+}
+
+const ALL_TOPICS = [
+  "Web Dev", "DSA", "ML", "AI", "Cyber Security", "IoT", 
+  "DBMS", "CN", "CNS", "DevOps", "MLOps", 
+  "Programming Languages", "System Design", "OOP"
 ];
 
 const Prepare = () => {
   const [mode, setMode] = useState<PrepMode>(null);
   const [expandedQ, setExpandedQ] = useState<number | null>(null);
+  const [selectedTopics, setSelectedTopics] = useState<string[]>([]);
+  const [questions, setQuestions] = useState<Question[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [difficulty, setDifficulty] = useState("All Difficulties");
+
+  const toggleTopic = (topic: string) => {
+    setSelectedTopics(prev => 
+      prev.includes(topic) ? prev.filter(t => t !== topic) : [...prev, topic]
+    );
+  };
+
+  const handleGenerateTheoryQuestions = async () => {
+    if (selectedTopics.length === 0) {
+      toast.error("Please select at least one topic.");
+      return;
+    }
+    
+    setIsLoading(true);
+    setQuestions([]);
+    
+    try {
+      const prompt = `You are an expert technical interviewer. Generate 20 interview questions based on the following topics: ${selectedTopics.join(", ")}. Difficulty level: ${difficulty}. Return the output STRICTLY as a JSON array of objects with the exact keys: "q" (the question), "a" (the detailed answer), "difficulty" ("easy", "medium", or "hard"). Do not include any markdown formatting like \`\`\`json, just the pure JSON array.`;
+
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${import.meta.env.VITE_GEMINI_API_KEY}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          systemInstruction: {
+            parts: [{ text: "You are an expert technical interviewer. Produce strictly JSON arrays." }]
+          },
+          contents: [{ parts: [{ text: prompt }] }]
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch from Gemini API");
+      }
+
+      const data = await response.json();
+      let aiText = data.candidates?.[0]?.content?.parts?.[0]?.text || "[]";
+      
+      // Attempt to clean the text in case DeepSeek includes markdown
+      aiText = aiText.replace(/```json/g, "").replace(/```/g, "").trim();
+      
+      const parsedQuestions: Question[] = JSON.parse(aiText);
+      setQuestions(parsedQuestions);
+      toast.success(`Successfully generated ${parsedQuestions.length} questions!`);
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to generate questions. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const modes = [
     { key: "theory" as const, icon: BookOpen, title: "Theory-Based", desc: "Practice core CS concepts and fundamentals", color: "bg-primary/10 text-primary" },
@@ -58,8 +121,16 @@ const Prepare = () => {
 
               {mode === "theory" && (
                 <div className="flex flex-wrap gap-2">
-                  {["Data Structures", "Algorithms", "System Design", "OOP", "Databases", "Networking"].map(topic => (
-                    <button key={topic} className="px-4 py-2 rounded-xl text-sm border border-border hover:border-primary hover:bg-primary/5 text-foreground transition-colors">
+                  {ALL_TOPICS.map(topic => (
+                    <button 
+                      key={topic} 
+                      onClick={() => toggleTopic(topic)}
+                      className={`px-4 py-2 rounded-xl text-sm border transition-colors ${
+                        selectedTopics.includes(topic)
+                          ? "border-primary bg-primary/10 text-primary"
+                          : "border-border hover:border-primary hover:bg-primary/5 text-foreground"
+                      }`}
+                    >
                       {topic}
                     </button>
                   ))}
@@ -82,45 +153,61 @@ const Prepare = () => {
               )}
 
               <div className="flex flex-wrap gap-3 items-center">
-                <select className="px-4 py-2 rounded-xl border border-border bg-background text-sm">
+                <select 
+                  className="px-4 py-2 rounded-xl border border-border bg-background text-sm"
+                  value={difficulty}
+                  onChange={(e) => setDifficulty(e.target.value)}
+                >
                   <option>All Difficulties</option>
                   <option>Easy</option>
                   <option>Medium</option>
                   <option>Hard</option>
                 </select>
-                <Input placeholder="Filter by role..." className="max-w-xs h-10 rounded-xl" />
-                <Button className="btn-gradient text-sm px-6 py-2 h-auto">Generate Questions</Button>
+                {mode !== "theory" && (
+                  <Input placeholder="Filter by role..." className="max-w-xs h-10 rounded-xl" />
+                )}
+                <Button 
+                  className="btn-gradient text-sm px-6 py-2 h-auto"
+                  onClick={mode === "theory" ? handleGenerateTheoryQuestions : undefined}
+                  disabled={isLoading}
+                >
+                  {isLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                  Generate Questions
+                </Button>
               </div>
             </div>
 
             {/* Questions */}
-            <div className="space-y-3">
-              <h3 className="font-semibold text-foreground">Generated Questions</h3>
-              {sampleQuestions.map((q, i) => (
-                <div key={i} className="glass-card overflow-hidden">
-                  <button
-                    onClick={() => setExpandedQ(expandedQ === i ? null : i)}
-                    className="w-full flex items-center justify-between p-5 text-left"
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className="text-sm font-medium text-muted-foreground w-6">Q{i + 1}</span>
-                      <span className="text-sm font-medium text-foreground">{q.q}</span>
-                    </div>
-                    <div className="flex items-center gap-3 shrink-0 ml-4">
-                      <span className={q.difficulty === "easy" ? "tag-easy" : q.difficulty === "medium" ? "tag-medium" : "tag-hard"}>
-                        {q.difficulty}
-                      </span>
-                      {expandedQ === i ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
-                    </div>
-                  </button>
-                  {expandedQ === i && (
-                    <div className="px-5 pb-5 pt-0 border-t border-border">
-                      <p className="text-sm text-muted-foreground leading-relaxed mt-4">{q.a}</p>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
+            {/* Questions */}
+            {questions.length > 0 && (
+              <div className="space-y-3">
+                <h3 className="font-semibold text-foreground">Generated Questions</h3>
+                {questions.map((q, i) => (
+                  <div key={i} className="glass-card overflow-hidden">
+                    <button
+                      onClick={() => setExpandedQ(expandedQ === i ? null : i)}
+                      className="w-full flex items-center justify-between p-5 text-left"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="text-sm font-medium text-muted-foreground w-6">Q{i + 1}</span>
+                        <span className="text-sm font-medium text-foreground">{q.q}</span>
+                      </div>
+                      <div className="flex items-center gap-3 shrink-0 ml-4">
+                        <span className={q.difficulty === "easy" ? "tag-easy" : q.difficulty === "medium" ? "tag-medium" : "tag-hard"}>
+                          {q.difficulty}
+                        </span>
+                        {expandedQ === i ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+                      </div>
+                    </button>
+                    {expandedQ === i && (
+                      <div className="px-5 pb-5 pt-0 border-t border-border">
+                        <p className="text-sm text-muted-foreground leading-relaxed mt-4">{q.a}</p>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>

@@ -1,8 +1,9 @@
 import { useState } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
-import { Bot, User, Send, Mic } from "lucide-react";
+import { Bot, User, Send, Mic, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import { toast } from "sonner";
 
 interface Message {
   role: "ai" | "user";
@@ -16,28 +17,58 @@ const initialMessages: Message[] = [
 const AIInterviewer = () => {
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [input, setInput] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
   const questionNum = Math.min(Math.ceil(messages.filter(m => m.role === "ai").length), 10);
 
-  const handleSend = () => {
-    if (!input.trim()) return;
+  const handleSend = async () => {
+    if (!input.trim() || isLoading) return;
+    
     const userMsg: Message = { role: "user", text: input };
-    const aiResponse: Message = {
-      role: "ai",
-      text: questionNum >= 10
-        ? "Great job! That concludes our interview session. You demonstrated strong knowledge across multiple areas. I'd recommend focusing more on system design patterns for future interviews."
-        : [
-            "That's a solid answer. Now, can you explain the difference between REST and GraphQL APIs?",
-            "Good explanation. How would you design a caching strategy for a high-traffic application?",
-            "Interesting approach. What design patterns have you used in production?",
-            "Nice. Can you walk me through how you'd handle database scaling?",
-            "Great insight. Tell me about a challenging bug you've debugged recently.",
-            "Well articulated. How do you approach code reviews in your team?",
-            "Good point. What's your experience with CI/CD pipelines?",
-            "Excellent. How would you ensure security in a microservices architecture?",
-          ][Math.min(questionNum - 1, 7)]
-    };
-    setMessages([...messages, userMsg, aiResponse]);
+    const newMessages = [...messages, userMsg];
+    setMessages(newMessages);
     setInput("");
+    
+    if (questionNum >= 10) {
+      setMessages([...newMessages, {
+        role: "ai",
+        text: "Great job! That concludes our interview session. You demonstrated strong knowledge across multiple areas. I'd recommend focusing more on system design patterns for future interviews."
+      }]);
+      return;
+    }
+
+    setIsLoading(true);
+    
+    try {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${import.meta.env.VITE_GEMINI_API_KEY}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          systemInstruction: {
+            parts: [{ text: "You are an expert technical interviewer. The user is a candidate. Evaluate the user's previous answer briefly and then ask the next interview question. Keep it concise." }]
+          },
+          contents: newMessages.map(m => ({
+            role: m.role === "ai" ? "model" : "user",
+            parts: [{ text: m.text }]
+          }))
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch from Gemini API");
+      }
+
+      const data = await response.json();
+      const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text || "I didn't quite catch that. Could you please elaborate?";
+      
+      setMessages([...newMessages, { role: "ai", text: aiText }]);
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to generate response. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -82,12 +113,18 @@ const AIInterviewer = () => {
             onKeyDown={(e) => e.key === "Enter" && handleSend()}
             placeholder="Type your response..."
             className="flex-1 bg-transparent border-none outline-none text-sm text-foreground placeholder:text-muted-foreground px-3"
+            disabled={isLoading}
           />
           <Button variant="ghost" size="icon" className="rounded-xl text-muted-foreground hover:text-foreground">
             <Mic className="w-4 h-4" />
           </Button>
-          <Button size="icon" className="rounded-xl bg-primary text-primary-foreground" onClick={handleSend}>
-            <Send className="w-4 h-4" />
+          <Button 
+            size="icon" 
+            className="rounded-xl bg-primary text-primary-foreground" 
+            onClick={handleSend}
+            disabled={isLoading}
+          >
+            {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
           </Button>
         </div>
       </div>
