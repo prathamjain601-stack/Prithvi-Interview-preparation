@@ -67,21 +67,27 @@ const Prepare = () => {
   const [mode, setMode] = useState<PrepMode>(null);
   const [expandedQ, setExpandedQ] = useState<number | null>(null);
   const [selectedTopics, setSelectedTopics] = useState<string[]>([]);
+  const [activeTopic, setActiveTopic] = useState<string | null>(null);
   const [selectedSubtopics, setSelectedSubtopics] = useState<Record<string, string[]>>({});
   const [questions, setQuestions] = useState<Question[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [difficulty, setDifficulty] = useState("All Difficulties");
 
   const toggleTopic = (topicId: string) => {
-    setSelectedTopics(prev => {
-      if (prev.includes(topicId)) {
+    if (selectedTopics.includes(topicId)) {
+      if (activeTopic === topicId) {
+        setActiveTopic(null);
+        setSelectedTopics(prev => prev.filter(t => t !== topicId));
         const newSubtopics = { ...selectedSubtopics };
         delete newSubtopics[topicId];
         setSelectedSubtopics(newSubtopics);
-        return prev.filter(t => t !== topicId);
+      } else {
+        setActiveTopic(topicId);
       }
-      return [...prev, topicId];
-    });
+    } else {
+      setSelectedTopics(prev => [...prev, topicId]);
+      setActiveTopic(topicId);
+    }
   };
 
   const toggleSubtopic = (topicId: string, sub: string) => {
@@ -213,13 +219,34 @@ Return the output STRICTLY as a JSON array of objects with the exact keys: "q" (
                     ))}
                   </div>
 
-                  {/* Render Subtopics for selected topics */}
-                  {selectedTopics.map(tId => {
+                  {/* Render Subtopics for active topic */}
+                  {activeTopic && selectedTopics.includes(activeTopic) && [activeTopic].map(tId => {
                     const tData = TOPIC_DATA.find(d => d.id === tId);
                     if (!tData || tData.subtopics.length === 0) return null;
                     return (
                       <div key={tId} className="p-4 rounded-xl bg-muted/30 border border-border mt-2 animate-fade-in">
-                        <h4 className="text-xs font-semibold uppercase tracking-wider mb-3 text-muted-foreground">{tId} Subtopics</h4>
+                        <div className="flex items-center gap-3 mb-3">
+                          <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{tId} Subtopics</h4>
+                          <button
+                            onClick={() => {
+                              setSelectedSubtopics(prev => {
+                                const current = prev[tId] || [];
+                                if (current.length === tData.subtopics.length) {
+                                  return { ...prev, [tId]: [] };
+                                } else {
+                                  return { ...prev, [tId]: [...tData.subtopics] };
+                                }
+                              });
+                            }}
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase border transition-colors ${
+                              selectedSubtopics[tId]?.length === tData.subtopics.length
+                                ? "border-primary bg-primary/10 text-primary"
+                                : "border-border hover:border-primary/50 text-muted-foreground hover:text-foreground bg-background"
+                            }`}
+                          >
+                            All
+                          </button>
+                        </div>
                         <div className="flex flex-wrap gap-2 max-h-48 overflow-y-auto pr-2">
                           {tData.subtopics.map(sub => (
                             <button 
