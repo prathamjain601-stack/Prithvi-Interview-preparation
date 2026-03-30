@@ -1,10 +1,16 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
-import { BookOpen, FileText, Briefcase, Upload, ChevronDown, ChevronUp, Loader2, Download, Star } from "lucide-react";
+import { BookOpen, FileText, Briefcase, Upload, ChevronDown, ChevronUp, Loader2, Download, Star, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
+import { useDropzone } from "react-dropzone";
+import * as pdfjsLib from "pdfjs-dist";
+import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+
+// Point PDF.js to the locally bundled worker (served from localhost, no CDN needed)
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
 type PrepMode = null | "theory" | "resume" | "jd";
 
@@ -64,6 +70,10 @@ const TOPIC_DATA = [
   ] },
 ];
 
+const JOB_ROLES = [
+  "Accessibility Engineer", "Ads Optimization Specialist", "Agile Coach", "AgriTech Engineer", "AI Engineer", "AI Ethics Specialist", "AI Product Manager", "AI Research Scientist", "AI Solutions Architect", "Algorithm Engineer", "Android Developer", "API Developer", "Application Security Engineer", "Application Support Engineer", "AR/VR Developer", "Artificial Intelligence Engineer", "Audio Engineer", "Augmented Reality Designer", "Automation Engineer", "Backend Developer", "Big Data Engineer", "Bioinformatics Data Scientist", "Bioinformatics Engineer", "Blockchain Developer", "Build Engineer", "Build and Release Engineer", "Business Analyst", "Business Intelligence Analyst", "Business Process Analyst", "Business Systems Analyst", "CAD Engineer", "Chatbot Developer", "Chief Information Officer (CIO)", "Chief Information Security Officer (CISO)", "Chief Technology Officer (CTO)", "Climate Tech Analyst", "Cloud Architect", "Cloud Automation Engineer", "Cloud Consultant", "Cloud Engineer", "Cloud Network Engineer", "Cloud Security Engineer", "Cloud Solutions Engineer", "Cognitive Systems Engineer", "Compliance Analyst", "Computer Graphics Developer", "Computer Vision Engineer", "Configuration Manager", "Content Engineer", "Content Strategist (Tech)", "CRM Administrator", "CRM Developer", "Customer Data Analyst", "Customer Success Engineer", "Cyber Security Analyst", "Cyber Security Engineer", "Cyber Threat Hunter", "Data Analyst", "Data Annotator", "Data Architect", "Data Collection Engineer", "Data Engineer", "Data Governance Analyst", "Data Labeling Specialist", "Data Migration Engineer", "Data Operations Analyst", "Data Platform Engineer", "Data Privacy Analyst", "Data Product Manager", "Data Quality Analyst", "Data Scientist", "Data Steward", "Data Visualization Engineer", "Data Warehouse Engineer", "Database Administrator (DBA)", "Database Developer", "Deep Learning Engineer", "Detection Engineer", "DevOps Engineer", "DevSecOps Engineer", "Digital Marketing Analyst", "Digital Signal Processing Engineer", "Digital Transformation Consultant", "Distributed Systems Engineer", "eCommerce Developer", "Edge AI Engineer", "Edge Computing Engineer", "EdTech Specialist", "Embedded Systems Engineer", "Enterprise Architect", "Enterprise Systems Engineer", "Ethical Hacker", "ETL Developer", "Financial Systems Analyst", "Firmware Engineer", "Firmware Security Engineer", "Frontend Developer", "Full Stack AI Engineer", "Full Stack Developer", "Game AI Developer", "Game Designer", "Game Developer", "Geospatial Engineer", "GIS Analyst", "Graphics Engineer", "Growth Engineer", "Hardware Design Engineer", "Hardware Engineer", "Healthcare IT Specialist", "Help Desk Engineer", "HPC Engineer", "Human-Computer Interaction (HCI) Specialist", "Identity and Access Management Engineer", "Identity Engineer", "Incident Responder", "Information Assurance Analyst", "Information Retrieval Engineer", "Information Security Analyst", "Infrastructure Automation Engineer", "Infrastructure Engineer", "Integration Architect", "Integration Engineer", "IoT Engineer", "IoT Solutions Architect", "IT Asset Manager", "IT Auditor", "IT Consultant", "IT Governance Analyst", "IT Operations Engineer", "IT Risk Manager", "IT Support Specialist", "IT Trainer", "Java Developer", "JavaScript Developer", "Kernel Developer", "Knowledge Engineer", "Knowledge Graph Engineer", "Kubernetes Engineer", "Lead Software Engineer", "Legal Tech Consultant", "Linux Administrator", "Localization Engineer", "Low-Code/No-Code Developer", "Machine Learning Engineer", "Machine Learning Ops Engineer", "Machine Learning Researcher", "Machine Vision Engineer", "Mainframe Developer", "MarTech Specialist", "Marketing Data Analyst", "Metaverse Developer", "Middleware Engineer", "Mobile App Developer", "Mobile DevOps Engineer", "Mobile Security Engineer", "Network Administrator", "Network Architect", "Network Engineer", "Network Operations Center (NOC) Engineer", "Network Security Engineer", "NLP Engineer", "NoSQL Database Engineer", "Observability Engineer", "Operating Systems Engineer", "Open Source Contributor (Professional)", "Operations Analyst", "Penetration Tester", "Penetration Testing Consultant", "Penetration Testing Engineer", "Performance Engineer", "Platform Engineer", "Platform Security Engineer", "Pre-Sales Engineer", "Privacy Engineer", "Process Engineer", "Product Analyst", "Product Manager", "Product Security Engineer", "Program Manager", "Project Manager", "QA Automation Engineer", "QA Engineer", "QA Lead", "Quantitative Analyst", "Quantum Computing Engineer", "Release Engineer", "Release Manager", "Reliability Engineer", "Requirements Engineer", "Research Scientist", "Revenue Operations Analyst", "Reverse Engineer", "Risk Analyst", "Robotics Engineer", "Robotics Process Automation (RPA) Developer", "SaaS Operations Engineer", "Sales Engineer", "Salesforce Developer", "SAP Consultant", "Scala Developer", "Search Engineer", "Search Quality Engineer", "Security Analyst", "Security Consultant", "Security Engineer", "Security Operations Engineer", "Security Researcher", "Semantic Web Engineer", "Service Delivery Manager", "Simulation Engineer", "Site Reliability Architect", "Site Reliability Engineer (SRE)", "Smart Contract Developer", "Social Media Tech Analyst", "SOC Analyst", "Software Architect", "Software Developer", "Software Engineer", "Software Engineering Manager", "Software Tester", "Solutions Architect", "Solutions Consultant", "Solutions Engineer", "Spatial Data Engineer", "Speech AI Engineer", "Speech Recognition Engineer", "SQL Developer", "Staff Software Engineer", "Storage Engineer", "Supply Chain Analyst", "Systems Analyst", "Systems Engineer", "Systems Integration Engineer", "Systems Programmer", "Technical Account Manager", "Technical Architect", "Technical Evangelist", "Technical Program Manager", "Technical Recruiter (IT)", "Technical Support Engineer", "Technical Writer", "Telecom Engineer", "Test Architect", "Test Automation Engineer", "Test Engineer", "Threat Detection Engineer", "Threat Intelligence Analyst", "UI Developer", "UI Engineer", "UI/UX Designer", "Usability Analyst", "UX Researcher", "Video Game Tester", "Video Streaming Engineer", "Virtualization Engineer", "VLSI Engineer", "Voice Engineer", "Vulnerability Analyst", "Web Designer", "Web Developer", "Web Performance Engineer", "Web Security Engineer", "Wireless Network Engineer", "WordPress Developer", "Workflow Automation Engineer", "XR Developer", "Yield Engineer"
+].sort();
+
 const Prepare = () => {
   const [mode, setMode] = useState<PrepMode>(null);
   const [expandedQ, setExpandedQ] = useState<number | null>(null);
@@ -74,6 +84,100 @@ const Prepare = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [difficulty, setDifficulty] = useState("All Difficulties");
+  const [roleInput, setRoleInput] = useState("");
+  const [resumeFile, setResumeFile] = useState<File | null>(null);
+  const [resumeText, setResumeText] = useState("");
+  const [showRoleDropdown, setShowRoleDropdown] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowRoleDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const onDrop = async (acceptedFiles: File[]) => {
+    const file = acceptedFiles[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("File size exceeds 5MB limit.");
+      return;
+    }
+
+    const isPdf = file.type === "application/pdf" || file.name.endsWith(".pdf");
+    const isDocx = file.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" || file.name.endsWith(".docx");
+
+    if (!isPdf && !isDocx) {
+      toast.error("Unsupported file type. Please upload PDF or DOCX.");
+      return;
+    }
+
+    setResumeFile(file);
+    setIsLoading(true);
+
+    try {
+      let extractedText = "";
+      if (isPdf) {
+        extractedText = await parsePDF(file);
+      } else {
+        extractedText = await parseDOCX(file);
+      }
+
+      if (!extractedText || !extractedText.trim()) {
+        throw new Error("No readable text found. The file may be scanned or image-based.");
+      }
+
+      setResumeText(extractedText);
+      toast.success("Resume parsed successfully!");
+    } catch (err: any) {
+      console.error("Resume parsing failed:", err);
+      toast.error(`Failed to parse: ${err.message || "Unknown error. Try a different file."}`);
+      setResumeFile(null);
+      setResumeText("");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop,
+    accept: {
+      'application/pdf': ['.pdf'],
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx']
+    },
+    multiple: false
+  });
+
+  const parsePDF = async (file: File): Promise<string> => {
+    const arrayBuffer = await file.arrayBuffer();
+    const loadingTask = pdfjsLib.getDocument({
+      data: new Uint8Array(arrayBuffer),
+      useSystemFonts: true,
+    });
+    const pdf = await loadingTask.promise;
+    const textParts: string[] = [];
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const content = await page.getTextContent();
+      const pageText = content.items.map((item: any) => item.str).join(" ");
+      textParts.push(pageText);
+    }
+    return textParts.join("\n");
+  };
+
+  const parseDOCX = async (file: File): Promise<string> => {
+    // Vite resolves mammoth's 'browser' field in package.json automatically
+    const mammothModule = await import("mammoth");
+    const mammoth = mammothModule.default || mammothModule;
+    const arrayBuffer = await file.arrayBuffer();
+    const result = await (mammoth as any).extractRawText({ arrayBuffer });
+    return result.value;
+  };
 
   const toggleImportant = (index: number) => {
     setQuestions(prev => prev.map((q, i) => i === index ? { ...q, isImportant: !q.isImportant } : q));
@@ -90,11 +194,17 @@ const Prepare = () => {
       const html2pdf = html2pdfModule.default ? html2pdfModule.default : html2pdfModule;
       
       const opt = {
-        margin:       0.5,
-        filename:     'Interview_QA.pdf',
-        image:        { type: 'jpeg', quality: 0.98 },
-        html2canvas:  { scale: 2, useCORS: true, windowWidth: 800, width: 800 },
-        jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' }
+        margin:      [15, 15, 15, 15], // top, right, bottom, left in mm
+        filename:    'Interview_QA.pdf',
+        image:       { type: 'jpeg', quality: 1 },
+        html2canvas: {
+          scale: 2,
+          useCORS: true,
+          letterRendering: true,
+          windowWidth: 794, // A4 width in px at 96dpi
+          width: 794,
+        },
+        jsPDF:       { unit: 'mm', format: 'a4', orientation: 'portrait' }
       };
       
       await (html2pdf as any)().set(opt).from(element).save();
@@ -103,7 +213,7 @@ const Prepare = () => {
       console.error(err);
       toast.error("Failed to generate PDF.");
     } finally {
-        setIsDownloading(false);
+      setIsDownloading(false);
     }
   };
 
@@ -194,6 +304,62 @@ Return the output STRICTLY as a JSON array of objects with the exact keys: "q" (
       toast.error("Failed to generate questions. Please try again.");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleGenerateResumeQuestions = async (append = false) => {
+    if (!resumeText) {
+      toast.error("Please upload a resume first.");
+      return;
+    }
+    
+    setIsLoading(true);
+    if (!append) setQuestions([]);
+    
+    try {
+      const prompt = `You are an expert technical interviewer. I will provide you with a candidate's resume text and a target role. 
+      Generate 10 highly realistic, practical interview questions tailored specifically to the candidate's experience, projects, and skills mentioned in their resume, focusing on the role of "${roleInput || 'Software Engineer'}".
+      
+      Resume Content:
+      ${resumeText.substring(0, 4000)} 
+      
+      Difficulty level: ${difficulty}. 
+      
+      Return the output STRICTLY as a JSON array of objects with the exact keys: "q" (the question), "a" (the concise answer formatted with markdown), "difficulty" ("easy", "medium", or "hard"), and "topics" (an array of strings). Do not include any markdown formatting like \`\`\`json, just the pure JSON array.`;
+
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${import.meta.env.VITE_GEMINI_API_KEY}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: "You are an expert technical interviewer. Produce strictly JSON arrays." }] },
+          contents: [{ parts: [{ text: prompt }] }]
+        })
+      });
+
+      if (!response.ok) throw new Error("Failed to fetch from Gemini API");
+
+      const data = await response.json();
+      let aiText = data.candidates?.[0]?.content?.parts?.[0]?.text || "[]";
+      aiText = aiText.replace(/```json/g, "").replace(/```/g, "").trim();
+      
+      const parsedQuestions: Question[] = JSON.parse(aiText);
+      setQuestions(prev => append ? [...prev, ...parsedQuestions] : parsedQuestions);
+      toast.success(`Successfully generated ${parsedQuestions.length} questions!`);
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to generate questions. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleGenerateQuestions = (append = false) => {
+    if (mode === "theory") {
+      handleGenerateTheoryQuestions(append);
+    } else if (mode === "resume") {
+      handleGenerateResumeQuestions(append);
+    } else {
+      toast.info("JD-based generation is coming soon!");
     }
   };
 
@@ -305,10 +471,42 @@ Return the output STRICTLY as a JSON array of objects with the exact keys: "q" (
               )}
 
               {mode === "resume" && (
-                <div className="border-2 border-dashed border-border rounded-2xl p-10 text-center hover:border-primary/50 transition-colors">
-                  <Upload className="w-8 h-8 mx-auto text-muted-foreground mb-3" />
-                  <p className="text-sm text-muted-foreground">Drag & drop your resume here, or click to browse</p>
-                  <p className="text-xs text-muted-foreground/60 mt-1">PDF, DOCX up to 5MB</p>
+                <div 
+                  {...getRootProps()} 
+                  className={`border-2 border-dashed rounded-2xl p-10 text-center transition-all cursor-pointer ${
+                    isDragActive ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"
+                  } ${resumeFile ? "bg-muted/30" : ""}`}
+                >
+                  <input {...getInputProps()} />
+                  {!resumeFile ? (
+                    <>
+                      <Upload className={`w-8 h-8 mx-auto mb-3 ${isDragActive ? "text-primary" : "text-muted-foreground"}`} />
+                      <p className="text-sm text-muted-foreground">
+                        {isDragActive ? "Drop the file here..." : "Drag & drop your resume here, or click to browse"}
+                      </p>
+                      <p className="text-xs text-muted-foreground/60 mt-1">PDF, DOCX up to 5MB</p>
+                    </>
+                  ) : (
+                    <div className="flex flex-col items-center animate-fade-in">
+                      <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mb-3">
+                        <FileText className="w-6 h-6 text-primary" />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-foreground">{resumeFile.name}</span>
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setResumeFile(null);
+                            setResumeText("");
+                          }}
+                          className="p-1 rounded-full hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">Successfully parsed</p>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -331,12 +529,47 @@ Return the output STRICTLY as a JSON array of objects with the exact keys: "q" (
                   <option>Hard</option>
                 </select>
                 {mode !== "theory" && (
-                  <Input placeholder="Filter by role..." className="max-w-xs h-10 rounded-xl" />
+                  <div className="relative" ref={dropdownRef}>
+                    <Input 
+                      placeholder="Type your role..." 
+                      className="w-[280px] h-10 rounded-xl" 
+                      value={roleInput}
+                      onChange={(e) => {
+                        setRoleInput(e.target.value);
+                        setShowRoleDropdown(true);
+                      }}
+                      onFocus={() => setShowRoleDropdown(true)}
+                    />
+                    {showRoleDropdown && (
+                      <div className="absolute z-50 w-full mt-2 bg-background border border-border rounded-xl shadow-lg max-h-60 overflow-y-auto">
+                        {JOB_ROLES.filter(r => roleInput ? r.toLowerCase().startsWith(roleInput.toLowerCase()) : true).length > 0 ? (
+                          <ul className="py-1">
+                            {JOB_ROLES.filter(r => roleInput ? r.toLowerCase().startsWith(roleInput.toLowerCase()) : true).map(role => (
+                              <li 
+                                key={role}
+                                className="px-4 py-2.5 text-sm hover:bg-muted cursor-pointer transition-colors"
+                                onClick={() => {
+                                  setRoleInput(role);
+                                  setShowRoleDropdown(false);
+                                }}
+                              >
+                                {role}
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <div className="px-4 py-3 text-sm text-muted-foreground">
+                            No matching roles found.
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 )}
                 <Button 
                   className="btn-gradient text-sm px-6 py-2 h-auto"
-                  onClick={mode === "theory" ? () => handleGenerateTheoryQuestions(false) : undefined}
-                  disabled={isLoading}
+                  onClick={() => handleGenerateQuestions(false)}
+                  disabled={isLoading || (mode === "resume" && !resumeFile)}
                 >
                   {isLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
                   Generate Questions
@@ -402,7 +635,7 @@ Return the output STRICTLY as a JSON array of objects with the exact keys: "q" (
                   <Button 
                     variant="outline"
                     className="border-primary text-primary hover:bg-primary/10 flex items-center"
-                    onClick={() => handleGenerateTheoryQuestions(true)}
+                    onClick={() => handleGenerateQuestions(true)}
                     disabled={isLoading}
                   >
                     {isLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
@@ -415,24 +648,105 @@ Return the output STRICTLY as a JSON array of objects with the exact keys: "q" (
         )}
       </div>
 
-      {/* Hidden container strictly for PDF rendering containing ALL questions fully expanded */}
-      <div className="h-0 w-0 overflow-hidden opacity-0 pointer-events-none fixed top-0 left-0 -z-50">
-        <div id="pdf-content" className="p-8 bg-white text-black" style={{ width: '800px', maxWidth: '800px' }}>
-          <h1 className="text-3xl font-bold text-center text-indigo-600 mb-8 pb-4 border-b border-gray-200">Interview Preparation Q&A</h1>
-          <div className="space-y-12">
+      {/* Hidden container for PDF rendering — fully expanded, clean typography */}
+      <div style={{ position: 'fixed', top: 0, left: '-9999px', zIndex: -9999, pointerEvents: 'none' }}>
+        <div
+          id="pdf-content"
+          style={{
+            width: '794px',
+            padding: '40px 48px',
+            backgroundColor: '#ffffff',
+            color: '#1a1a2e',
+            fontFamily: "'Segoe UI', Arial, sans-serif",
+            fontSize: '13px',
+            lineHeight: '1.75',
+            boxSizing: 'border-box',
+            wordBreak: 'break-word',
+            overflowWrap: 'break-word',
+          }}
+        >
+          {/* Header */}
+          <div style={{ textAlign: 'center', marginBottom: '36px', paddingBottom: '24px', borderBottom: '2px solid #6366f1' }}>
+            <h1 style={{ fontSize: '26px', fontWeight: 700, color: '#6366f1', margin: 0, letterSpacing: '-0.5px' }}>
+              Interview Preparation Q&A
+            </h1>
+            <p style={{ fontSize: '12px', color: '#64748b', marginTop: '6px' }}>
+              {questions.length} question{questions.length !== 1 ? 's' : ''} generated
+            </p>
+          </div>
+
+          {/* Questions */}
+          <div>
             {questions.map((q, i) => (
-              <div key={`pdf-q-${i}`} className="pb-8 border-b border-gray-200" style={{ pageBreakInside: 'avoid' }}>
-                <h3 className="text-xl font-bold text-gray-900 mb-3 block break-words">
-                  {q.isImportant && <span className="text-yellow-500 mr-2">★</span>}
-                  Q{i + 1}: {q.q}
+              <div
+                key={`pdf-q-${i}`}
+                style={{
+                  marginBottom: '32px',
+                  paddingBottom: '28px',
+                  borderBottom: '1px solid #e2e8f0',
+                  pageBreakInside: 'avoid',
+                  breakInside: 'avoid',
+                }}
+              >
+                {/* Question title */}
+                <h3
+                  style={{
+                    fontSize: '15px',
+                    fontWeight: 700,
+                    color: '#1e293b',
+                    marginBottom: '10px',
+                    marginTop: 0,
+                    lineHeight: '1.6',
+                    wordBreak: 'break-word',
+                  }}
+                >
+                  {q.isImportant && <span style={{ color: '#f59e0b', marginRight: '6px' }}>★</span>}
+                  <span style={{ color: '#6366f1', marginRight: '6px' }}>Q{i + 1}.</span>
+                  {q.q}
                 </h3>
-                <div className="flex flex-wrap gap-2 mb-4">
-                  <span className="px-2 py-1 text-xs font-bold rounded bg-indigo-100 text-indigo-800 uppercase tracking-wider">{q.difficulty}</span>
+
+                {/* Tags */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '14px' }}>
+                  <span
+                    style={{
+                      padding: '2px 10px',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      borderRadius: '4px',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.5px',
+                      backgroundColor: q.difficulty === 'easy' ? '#dcfce7' : q.difficulty === 'medium' ? '#fef9c3' : '#fee2e2',
+                      color: q.difficulty === 'easy' ? '#16a34a' : q.difficulty === 'medium' ? '#d97706' : '#dc2626',
+                    }}
+                  >
+                    {q.difficulty}
+                  </span>
                   {q.topics?.map(topic => (
-                    <span key={`pdf-t-${topic}`} className="px-2 py-1 text-xs font-semibold rounded bg-gray-100 text-gray-700">{topic}</span>
+                    <span
+                      key={`pdf-t-${topic}`}
+                      style={{ padding: '2px 8px', fontSize: '11px', fontWeight: 600, borderRadius: '4px', backgroundColor: '#f1f5f9', color: '#475569' }}
+                    >
+                      {topic}
+                    </span>
                   ))}
                 </div>
-                <div className="prose prose-sm max-w-none text-gray-800 leading-relaxed bg-gray-50 p-4 rounded-lg [&_*]:break-words [&_*]:whitespace-pre-wrap overflow-hidden">
+
+                {/* Answer box */}
+                <div
+                  style={{
+                    backgroundColor: '#f8fafc',
+                    border: '1px solid #e2e8f0',
+                    borderLeft: '4px solid #6366f1',
+                    borderRadius: '6px',
+                    padding: '14px 18px',
+                    fontSize: '13px',
+                    lineHeight: '1.8',
+                    color: '#334155',
+                    wordBreak: 'break-word',
+                    overflowWrap: 'break-word',
+                    whiteSpace: 'pre-wrap',
+                  }}
+                >
                   <ReactMarkdown>{q.a}</ReactMarkdown>
                 </div>
               </div>
