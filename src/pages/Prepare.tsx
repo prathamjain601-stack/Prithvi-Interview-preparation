@@ -1,6 +1,6 @@
 import { useState } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
-import { BookOpen, FileText, Briefcase, Upload, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
+import { BookOpen, FileText, Briefcase, Upload, ChevronDown, ChevronUp, Loader2, Download, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
@@ -13,6 +13,7 @@ interface Question {
   a: string;
   difficulty: "easy" | "medium" | "hard";
   topics: string[];
+  isImportant?: boolean;
 }
 
 const TOPIC_DATA = [
@@ -71,7 +72,40 @@ const Prepare = () => {
   const [selectedSubtopics, setSelectedSubtopics] = useState<Record<string, string[]>>({});
   const [questions, setQuestions] = useState<Question[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
   const [difficulty, setDifficulty] = useState("All Difficulties");
+
+  const toggleImportant = (index: number) => {
+    setQuestions(prev => prev.map((q, i) => i === index ? { ...q, isImportant: !q.isImportant } : q));
+  };
+
+  const handleDownloadPDF = async () => {
+    const element = document.getElementById("pdf-content");
+    if (!element) return;
+    
+    setIsDownloading(true);
+    try {
+      // @ts-ignore
+      const html2pdfModule = await import("html2pdf.js");
+      const html2pdf = html2pdfModule.default ? html2pdfModule.default : html2pdfModule;
+      
+      const opt = {
+        margin:       0.5,
+        filename:     'Interview_QA.pdf',
+        image:        { type: 'jpeg', quality: 0.98 },
+        html2canvas:  { scale: 2, useCORS: true },
+        jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' }
+      };
+      
+      await (html2pdf as any)().set(opt).from(element).save();
+      toast.success("PDF downloaded successfully!");
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to generate PDF.");
+    } finally {
+        setIsDownloading(false);
+    }
+  };
 
   const toggleTopic = (topicId: string) => {
     if (selectedTopics.includes(topicId)) {
@@ -100,14 +134,16 @@ const Prepare = () => {
     });
   };
 
-  const handleGenerateTheoryQuestions = async () => {
+  const handleGenerateTheoryQuestions = async (append = false) => {
     if (selectedTopics.length === 0) {
       toast.error("Please select at least one topic.");
       return;
     }
     
     setIsLoading(true);
-    setQuestions([]);
+    if (!append) {
+      setQuestions([]);
+    }
     
     try {
       let topicStringParts = [];
@@ -125,7 +161,7 @@ const Prepare = () => {
       
 Make sure these are the EXACT types of questions asked in real industry interviews right now. Keep the detailed answers extremely concise and straight to the point to save time. 
 
-Return the output STRICTLY as a JSON array of objects with the exact keys: "q" (the question), "a" (the concise answer formatting with markdown), "difficulty" ("easy", "medium", or "hard"), and "topics" (an array of strings indicating which topics the question is based on, e.g. ["Web Dev", "ML"]). Do not include any markdown formatting like \`\`\`json, just the pure JSON array.`;
+Return the output STRICTLY as a JSON array of objects with the exact keys: "q" (the question), "a" (the concise answer formatted with markdown - use \\n\\n for line breaks and standard markdown lists, NEVER use HTML tags like <br>), "difficulty" ("easy", "medium", or "hard"), and "topics" (an array of strings indicating which topics the question is based on, e.g. ["Web Dev", "ML"]). Do not include any markdown formatting like \`\`\`json, just the pure JSON array.`;
 
       const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${import.meta.env.VITE_GEMINI_API_KEY}`, {
         method: "POST",
@@ -148,10 +184,10 @@ Return the output STRICTLY as a JSON array of objects with the exact keys: "q" (
       let aiText = data.candidates?.[0]?.content?.parts?.[0]?.text || "[]";
       
       // Attempt to clean the text in case DeepSeek includes markdown
-      aiText = aiText.replace(/```json/g, "").replace(/```/g, "").trim();
+      aiText = aiText.replace(/```json/g, "").replace(/```/g, "").replace(/<br\s*\/?>/gi, "\\n\\n").trim();
       
       const parsedQuestions: Question[] = JSON.parse(aiText);
-      setQuestions(parsedQuestions);
+      setQuestions(prev => append ? [...prev, ...parsedQuestions] : parsedQuestions);
       toast.success(`Successfully generated ${parsedQuestions.length} questions!`);
     } catch (error) {
       console.error(error);
@@ -299,7 +335,7 @@ Return the output STRICTLY as a JSON array of objects with the exact keys: "q" (
                 )}
                 <Button 
                   className="btn-gradient text-sm px-6 py-2 h-auto"
-                  onClick={mode === "theory" ? handleGenerateTheoryQuestions : undefined}
+                  onClick={mode === "theory" ? () => handleGenerateTheoryQuestions(false) : undefined}
                   disabled={isLoading}
                 >
                   {isLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
@@ -324,6 +360,13 @@ Return the output STRICTLY as a JSON array of objects with the exact keys: "q" (
                         <span className="text-sm font-medium text-foreground">{q.q}</span>
                       </div>
                       <div className="flex items-center gap-3 shrink-0 ml-4">
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); toggleImportant(i); }}
+                          className={`p-1.5 rounded-full transition-colors ${q.isImportant ? "bg-yellow-100 text-yellow-600 dark:bg-yellow-500/20 dark:text-yellow-500" : "hover:bg-muted text-muted-foreground hover:text-yellow-500"}`}
+                          title={q.isImportant ? "Remove from Important" : "Mark as Important"}
+                        >
+                          <Star className={`w-4 h-4 ${q.isImportant ? "fill-current" : ""}`} />
+                        </button>
                         <span className={q.difficulty === "easy" ? "tag-easy" : q.difficulty === "medium" ? "tag-medium" : "tag-hard"}>
                           {q.difficulty}
                         </span>
@@ -346,10 +389,56 @@ Return the output STRICTLY as a JSON array of objects with the exact keys: "q" (
                     )}
                   </div>
                 ))}
+                <div className="pt-4 pb-2 flex justify-center gap-4">
+                  <Button 
+                    variant="default"
+                    className="bg-secondary text-secondary-foreground hover:bg-secondary/80 flex items-center"
+                    onClick={handleDownloadPDF}
+                    disabled={isDownloading || questions.length === 0}
+                  >
+                    {isDownloading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
+                    Download as PDF
+                  </Button>
+                  <Button 
+                    variant="outline"
+                    className="border-primary text-primary hover:bg-primary/10 flex items-center"
+                    onClick={() => handleGenerateTheoryQuestions(true)}
+                    disabled={isLoading}
+                  >
+                    {isLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                    Generate More Questions
+                  </Button>
+                </div>
               </div>
             )}
           </div>
         )}
+      </div>
+
+      {/* Hidden container strictly for PDF rendering containing ALL questions fully expanded */}
+      <div className="absolute overflow-hidden pointer-events-none opacity-0" style={{ left: '-9999px', top: '-9999px' }}>
+        <div id="pdf-content" className="p-8 bg-white text-black min-h-screen" style={{ width: '800px' }}>
+          <h1 className="text-3xl font-bold text-center text-indigo-600 mb-8 pb-4 border-b border-gray-200">Interview Preparation Q&A</h1>
+          <div className="space-y-12">
+            {questions.map((q, i) => (
+              <div key={`pdf-q-${i}`} className="pb-8 border-b border-gray-200" style={{ pageBreakInside: 'avoid' }}>
+                <h3 className="text-xl font-bold text-gray-900 mb-3 flex items-start gap-2">
+                  {q.isImportant && <span className="text-yellow-500 mt-0.5">★</span>}
+                  <span>Q{i + 1}: {q.q}</span>
+                </h3>
+                <div className="flex flex-wrap gap-2 mb-4">
+                  <span className="px-2 py-1 text-xs font-bold rounded bg-indigo-100 text-indigo-800 uppercase tracking-wider">{q.difficulty}</span>
+                  {q.topics?.map(topic => (
+                    <span key={`pdf-t-${topic}`} className="px-2 py-1 text-xs font-semibold rounded bg-gray-100 text-gray-700">{topic}</span>
+                  ))}
+                </div>
+                <div className="prose prose-sm max-w-none text-gray-800 leading-relaxed bg-gray-50 p-4 rounded-lg">
+                  <ReactMarkdown>{q.a}</ReactMarkdown>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     </DashboardLayout>
   );
