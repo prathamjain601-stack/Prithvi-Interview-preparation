@@ -93,7 +93,7 @@ const Prepare = () => {
         margin:       0.5,
         filename:     'Interview_QA.pdf',
         image:        { type: 'jpeg', quality: 0.98 },
-        html2canvas:  { scale: 2, useCORS: true },
+        html2canvas:  { scale: 2, useCORS: true, windowWidth: 800, width: 800 },
         jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' }
       };
       
@@ -416,15 +416,15 @@ Return the output STRICTLY as a JSON array of objects with the exact keys: "q" (
       </div>
 
       {/* Hidden container strictly for PDF rendering containing ALL questions fully expanded */}
-      <div className="absolute overflow-hidden pointer-events-none opacity-0" style={{ left: '-9999px', top: '-9999px' }}>
-        <div id="pdf-content" className="p-8 bg-white text-black min-h-screen" style={{ width: '800px' }}>
+      <div className="h-0 w-0 overflow-hidden opacity-0 pointer-events-none fixed top-0 left-0 -z-50">
+        <div id="pdf-content" className="p-8 bg-white text-black" style={{ width: '800px', maxWidth: '800px' }}>
           <h1 className="text-3xl font-bold text-center text-indigo-600 mb-8 pb-4 border-b border-gray-200">Interview Preparation Q&A</h1>
           <div className="space-y-12">
             {questions.map((q, i) => (
               <div key={`pdf-q-${i}`} className="pb-8 border-b border-gray-200" style={{ pageBreakInside: 'avoid' }}>
-                <h3 className="text-xl font-bold text-gray-900 mb-3 flex items-start gap-2">
-                  {q.isImportant && <span className="text-yellow-500 mt-0.5">★</span>}
-                  <span>Q{i + 1}: {q.q}</span>
+                <h3 className="text-xl font-bold text-gray-900 mb-3 block break-words">
+                  {q.isImportant && <span className="text-yellow-500 mr-2">★</span>}
+                  Q{i + 1}: {q.q}
                 </h3>
                 <div className="flex flex-wrap gap-2 mb-4">
                   <span className="px-2 py-1 text-xs font-bold rounded bg-indigo-100 text-indigo-800 uppercase tracking-wider">{q.difficulty}</span>
@@ -432,7 +432,7 @@ Return the output STRICTLY as a JSON array of objects with the exact keys: "q" (
                     <span key={`pdf-t-${topic}`} className="px-2 py-1 text-xs font-semibold rounded bg-gray-100 text-gray-700">{topic}</span>
                   ))}
                 </div>
-                <div className="prose prose-sm max-w-none text-gray-800 leading-relaxed bg-gray-50 p-4 rounded-lg">
+                <div className="prose prose-sm max-w-none text-gray-800 leading-relaxed bg-gray-50 p-4 rounded-lg [&_*]:break-words [&_*]:whitespace-pre-wrap overflow-hidden">
                   <ReactMarkdown>{q.a}</ReactMarkdown>
                 </div>
               </div>
