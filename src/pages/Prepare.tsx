@@ -12,7 +12,7 @@ import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 // Point PDF.js to the locally bundled worker (served from localhost, no CDN needed)
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
-type PrepMode = null | "theory" | "resume" | "jd";
+type PrepMode = null | "theory" | "resume";
 
 interface Question {
   q: string;
@@ -87,6 +87,7 @@ const Prepare = () => {
   const [roleInput, setRoleInput] = useState("");
   const [resumeFile, setResumeFile] = useState<File | null>(null);
   const [resumeText, setResumeText] = useState("");
+  const [jdText, setJdText] = useState("");
   const [showRoleDropdown, setShowRoleDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -194,17 +195,23 @@ const Prepare = () => {
       const html2pdf = html2pdfModule.default ? html2pdfModule.default : html2pdfModule;
       
       const opt = {
-        margin:      [15, 15, 15, 15], // top, right, bottom, left in mm
-        filename:    'Interview_QA.pdf',
-        image:       { type: 'jpeg', quality: 1 },
+        margin:      0, // Zero margin for the tool, we handle padding in CSS
+        filename:    'Interview_Preparation_Slides.pdf',
+        image:       { type: 'png', quality: 1 },
         html2canvas: {
-          scale: 2,
+          scale: 3, // Very high resolution for crisp text
           useCORS: true,
           letterRendering: true,
-          windowWidth: 794, // A4 width in px at 96dpi
-          width: 794,
+          logging: false,
+          windowWidth: 1123, // A4 landscape width in px at 96dpi
         },
-        jsPDF:       { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        jsPDF: { 
+          unit: 'mm', 
+          format: 'a4', 
+          orientation: 'landscape',
+          compress: true
+        },
+        pagebreak: { mode: ['css', 'legacy'] }
       };
       
       await (html2pdf as any)().set(opt).from(element).save();
@@ -312,18 +319,28 @@ Return the output STRICTLY as a JSON array of objects with the exact keys: "q" (
       toast.error("Please upload a resume first.");
       return;
     }
+    if (!roleInput.trim()) {
+      toast.error("Please select or type a job role.");
+      return;
+    }
     
     setIsLoading(true);
     if (!append) setQuestions([]);
     
     try {
-      const prompt = `You are an expert technical interviewer. I will provide you with a candidate's resume text and a target role. 
-      Generate 10 highly realistic, practical interview questions tailored specifically to the candidate's experience, projects, and skills mentioned in their resume, focusing on the role of "${roleInput || 'Software Engineer'}".
+      const jdSection = jdText.trim()
+        ? `\n\nJob Description:\n${jdText.substring(0, 3000)}\n\nUse the job description above to further tailor the questions to the specific role requirements, desired skills, and responsibilities mentioned.`
+        : "";
+
+      const prompt = `You are an expert technical interviewer. I will provide you with a candidate's resume text and a target role.${jdSection}
+      Generate 10 highly realistic, practical interview questions tailored specifically to the candidate's experience, projects, and skills mentioned in their resume, focusing on the role of "${roleInput}".
       
       Resume Content:
       ${resumeText.substring(0, 4000)} 
       
       Difficulty level: ${difficulty}. 
+      
+      IMPORTANT: Write each answer in FIRST PERSON perspective, as if the candidate is answering the question themselves in an interview (e.g., "I implemented...", "In my project, I used..."). Do NOT write in third person (e.g., "The candidate should...", "They should...").
       
       Return the output STRICTLY as a JSON array of objects with the exact keys: "q" (the question), "a" (the concise answer formatted with markdown), "difficulty" ("easy", "medium", or "hard"), and "topics" (an array of strings). Do not include any markdown formatting like \`\`\`json, just the pure JSON array.`;
 
@@ -358,15 +375,12 @@ Return the output STRICTLY as a JSON array of objects with the exact keys: "q" (
       handleGenerateTheoryQuestions(append);
     } else if (mode === "resume") {
       handleGenerateResumeQuestions(append);
-    } else {
-      toast.info("JD-based generation is coming soon!");
     }
   };
 
   const modes = [
     { key: "theory" as const, icon: BookOpen, title: "Theory-Based", desc: "Practice core CS concepts and fundamentals", color: "bg-primary/10 text-primary" },
-    { key: "resume" as const, icon: FileText, title: "Resume-Based", desc: "Get questions tailored to your experience", color: "bg-accent/10 text-accent" },
-    { key: "jd" as const, icon: Briefcase, title: "JD-Based", desc: "Prepare for a specific job description", color: "bg-purple-100 text-purple-600" },
+    { key: "resume" as const, icon: FileText, title: "Resume & JD Based", desc: "Get questions tailored to your resume, role & job description", color: "bg-accent/10 text-accent" },
   ];
 
   return (
@@ -378,7 +392,7 @@ Return the output STRICTLY as a JSON array of objects with the exact keys: "q" (
         </div>
 
         {/* Mode selection */}
-        <div className="grid md:grid-cols-3 gap-4">
+        <div className="grid md:grid-cols-2 gap-4">
           {modes.map(m => (
             <button
               key={m.key}
@@ -400,7 +414,7 @@ Return the output STRICTLY as a JSON array of objects with the exact keys: "q" (
             {/* Filters / Upload */}
             <div className="glass-card p-6 space-y-4">
               <h3 className="font-semibold text-foreground">
-                {mode === "theory" ? "Select Topics" : mode === "resume" ? "Upload Resume" : "Paste Job Description"}
+                {mode === "theory" ? "Select Topics" : "Upload Resume & Details"}
               </h3>
 
               {mode === "theory" && (
@@ -471,50 +485,68 @@ Return the output STRICTLY as a JSON array of objects with the exact keys: "q" (
               )}
 
               {mode === "resume" && (
-                <div 
-                  {...getRootProps()} 
-                  className={`border-2 border-dashed rounded-2xl p-10 text-center transition-all cursor-pointer ${
-                    isDragActive ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"
-                  } ${resumeFile ? "bg-muted/30" : ""}`}
-                >
-                  <input {...getInputProps()} />
-                  {!resumeFile ? (
-                    <>
-                      <Upload className={`w-8 h-8 mx-auto mb-3 ${isDragActive ? "text-primary" : "text-muted-foreground"}`} />
-                      <p className="text-sm text-muted-foreground">
-                        {isDragActive ? "Drop the file here..." : "Drag & drop your resume here, or click to browse"}
-                      </p>
-                      <p className="text-xs text-muted-foreground/60 mt-1">PDF, DOCX up to 5MB</p>
-                    </>
-                  ) : (
-                    <div className="flex flex-col items-center animate-fade-in">
-                      <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mb-3">
-                        <FileText className="w-6 h-6 text-primary" />
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-foreground">{resumeFile.name}</span>
-                        <button 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setResumeFile(null);
-                            setResumeText("");
-                          }}
-                          className="p-1 rounded-full hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-1">Successfully parsed</p>
+                <div className="space-y-5">
+                  {/* Resume upload */}
+                  <div>
+                    <label className="text-sm font-medium text-foreground mb-2 flex items-center gap-1">
+                      Upload Resume <span className="text-destructive">*</span>
+                    </label>
+                    <div 
+                      {...getRootProps()} 
+                      className={`border-2 border-dashed rounded-2xl p-10 text-center transition-all cursor-pointer ${
+                        isDragActive ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"
+                      } ${resumeFile ? "bg-muted/30" : ""}`}
+                    >
+                      <input {...getInputProps()} />
+                      {!resumeFile ? (
+                        <>
+                          <Upload className={`w-8 h-8 mx-auto mb-3 ${isDragActive ? "text-primary" : "text-muted-foreground"}`} />
+                          <p className="text-sm text-muted-foreground">
+                            {isDragActive ? "Drop the file here..." : "Drag & drop your resume here, or click to browse"}
+                          </p>
+                          <p className="text-xs text-muted-foreground/60 mt-1">PDF, DOCX up to 5MB</p>
+                        </>
+                      ) : (
+                        <div className="flex flex-col items-center animate-fade-in">
+                          <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mb-3">
+                            <FileText className="w-6 h-6 text-primary" />
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium text-foreground">{resumeFile.name}</span>
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setResumeFile(null);
+                                setResumeText("");
+                              }}
+                              className="p-1 rounded-full hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-1">Successfully parsed</p>
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-              )}
+                  </div>
 
-              {mode === "jd" && (
-                <textarea
-                  className="w-full h-32 rounded-xl border border-border bg-background p-4 text-sm focus:ring-2 focus:ring-primary focus:border-transparent resize-none"
-                  placeholder="Paste the job description here..."
-                />
+                  {/* Optional JD textarea */}
+                  <div>
+                    <label className="text-sm font-medium text-foreground mb-2 flex items-center gap-1">
+                      <Briefcase className="w-4 h-4" /> Paste Job Description <span className="text-xs font-normal text-muted-foreground ml-1">(optional)</span>
+                    </label>
+                    <textarea
+                      className="w-full h-32 rounded-xl border border-border bg-background p-4 text-sm focus:ring-2 focus:ring-primary focus:border-transparent resize-none"
+                      placeholder="Paste the job description here for more personalized questions..."
+                      value={jdText}
+                      onChange={(e) => setJdText(e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1.5">
+                      <span className="inline-block w-1.5 h-1.5 rounded-full bg-primary/60 shrink-0"></span>
+                      For more personalization, you can also add a JD — but feeding your <strong>resume</strong> and <strong>job role</strong> are mandatory.
+                    </p>
+                  </div>
+                </div>
               )}
 
               <div className="flex flex-wrap gap-3 items-center">
@@ -528,10 +560,10 @@ Return the output STRICTLY as a JSON array of objects with the exact keys: "q" (
                   <option>Medium</option>
                   <option>Hard</option>
                 </select>
-                {mode !== "theory" && (
+                {mode === "resume" && (
                   <div className="relative" ref={dropdownRef}>
                     <Input 
-                      placeholder="Type your role..." 
+                      placeholder="Select job role *" 
                       className="w-[280px] h-10 rounded-xl" 
                       value={roleInput}
                       onChange={(e) => {
@@ -569,7 +601,7 @@ Return the output STRICTLY as a JSON array of objects with the exact keys: "q" (
                 <Button 
                   className="btn-gradient text-sm px-6 py-2 h-auto"
                   onClick={() => handleGenerateQuestions(false)}
-                  disabled={isLoading || (mode === "resume" && !resumeFile)}
+                  disabled={isLoading || (mode === "resume" && (!resumeFile || !roleInput.trim()))}
                 >
                   {isLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
                   Generate Questions
@@ -650,109 +682,105 @@ Return the output STRICTLY as a JSON array of objects with the exact keys: "q" (
 
       {/* Hidden container for PDF rendering — fully expanded, clean typography */}
       <div style={{ position: 'fixed', top: 0, left: '-9999px', zIndex: -9999, pointerEvents: 'none' }}>
+      {/* Hidden container for PDF rendering — optimized for high-quality Landscape Slides */}
+      <div style={{ position: 'fixed', top: 0, left: '-9999px', zIndex: -9999, pointerEvents: 'none' }}>
         <div
           id="pdf-content"
           style={{
-            width: '794px',
-            padding: '40px 48px',
+            width: '1123px', // A4 Landscape width
             backgroundColor: '#ffffff',
             color: '#1a1a2e',
-            fontFamily: "'Segoe UI', Arial, sans-serif",
-            fontSize: '13px',
-            lineHeight: '1.75',
+            fontFamily: "'Inter', 'Segoe UI', Arial, sans-serif",
             boxSizing: 'border-box',
-            wordBreak: 'break-word',
-            overflowWrap: 'break-word',
           }}
         >
-          {/* Header */}
-          <div style={{ textAlign: 'center', marginBottom: '36px', paddingBottom: '24px', borderBottom: '2px solid #6366f1' }}>
-            <h1 style={{ fontSize: '26px', fontWeight: 700, color: '#6366f1', margin: 0, letterSpacing: '-0.5px' }}>
-              Interview Preparation Q&A
-            </h1>
-            <p style={{ fontSize: '12px', color: '#64748b', marginTop: '6px' }}>
-              {questions.length} question{questions.length !== 1 ? 's' : ''} generated
-            </p>
-          </div>
+          {questions.map((q, i) => (
+            <div
+              key={`pdf-slide-${i}`}
+              className="pdf-slide"
+              style={{
+                width: '1123px',
+                height: '794px', // A4 Landscape height
+                padding: '60px 80px',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'space-between',
+                pageBreakAfter: 'always',
+                breakAfter: 'page',
+                position: 'relative',
+                boxSizing: 'border-box',
+                backgroundColor: '#ffffff',
+                border: '1px solid #f1f5f9'
+              }}
+            >
+              {/* Slide Header / Branding */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #6366f1', paddingBottom: '15px' }}>
+                <span style={{ fontSize: '14px', fontWeight: 700, color: '#6366f1', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                  AI Interview Preparation
+                </span>
+                <span style={{ fontSize: '12px', color: '#94a3b8', fontStyle: 'italic' }}>
+                  Slide {i + 1} of {questions.length}
+                </span>
+              </div>
 
-          {/* Questions */}
-          <div>
-            {questions.map((q, i) => (
-              <div
-                key={`pdf-q-${i}`}
-                style={{
-                  marginBottom: '32px',
-                  paddingBottom: '28px',
-                  borderBottom: '1px solid #e2e8f0',
-                  pageBreakInside: 'avoid',
-                  breakInside: 'avoid',
-                }}
-              >
-                {/* Question title */}
-                <h3
-                  style={{
-                    fontSize: '15px',
+              {/* Main Content Area (Vertically Centered) */}
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: '25px', padding: '20px 0' }}>
+                {/* Question */}
+                <div style={{ display: 'flex', gap: '15px' }}>
+                  <span style={{ fontSize: '24px', fontWeight: 800, color: '#6366f1', lineHeight: '1.2' }}>Q.</span>
+                  <h2 style={{ fontSize: '22px', fontWeight: 700, color: '#1e293b', margin: 0, lineHeight: '1.4', wordBreak: 'break-word' }}>
+                    {q.q}
+                  </h2>
+                </div>
+
+                {/* Difficulty & Topics */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginLeft: '45px' }}>
+                  <span style={{
+                    padding: '4px 12px',
+                    fontSize: '11px',
                     fontWeight: 700,
-                    color: '#1e293b',
-                    marginBottom: '10px',
-                    marginTop: 0,
-                    lineHeight: '1.6',
-                    wordBreak: 'break-word',
-                  }}
-                >
-                  {q.isImportant && <span style={{ color: '#f59e0b', marginRight: '6px' }}>★</span>}
-                  <span style={{ color: '#6366f1', marginRight: '6px' }}>Q{i + 1}.</span>
-                  {q.q}
-                </h3>
-
-                {/* Tags */}
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '14px' }}>
-                  <span
-                    style={{
-                      padding: '2px 10px',
-                      fontSize: '11px',
-                      fontWeight: 700,
-                      borderRadius: '4px',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.5px',
-                      backgroundColor: q.difficulty === 'easy' ? '#dcfce7' : q.difficulty === 'medium' ? '#fef9c3' : '#fee2e2',
-                      color: q.difficulty === 'easy' ? '#16a34a' : q.difficulty === 'medium' ? '#d97706' : '#dc2626',
-                    }}
-                  >
+                    borderRadius: '6px',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.5px',
+                    backgroundColor: q.difficulty === 'easy' ? '#dcfce7' : q.difficulty === 'medium' ? '#fef9c3' : '#fee2e2',
+                    color: q.difficulty === 'easy' ? '#16a34a' : q.difficulty === 'medium' ? '#d97706' : '#dc2626',
+                  }}>
                     {q.difficulty}
                   </span>
                   {q.topics?.map(topic => (
-                    <span
-                      key={`pdf-t-${topic}`}
-                      style={{ padding: '2px 8px', fontSize: '11px', fontWeight: 600, borderRadius: '4px', backgroundColor: '#f1f5f9', color: '#475569' }}
-                    >
+                    <span key={topic} style={{ padding: '4px 10px', fontSize: '11px', fontWeight: 600, borderRadius: '6px', backgroundColor: '#f1f5f9', color: '#475569', border: '1px solid #e2e8f0' }}>
                       {topic}
                     </span>
                   ))}
                 </div>
 
-                {/* Answer box */}
-                <div
-                  style={{
-                    backgroundColor: '#f8fafc',
-                    border: '1px solid #e2e8f0',
-                    borderLeft: '4px solid #6366f1',
-                    borderRadius: '6px',
-                    padding: '14px 18px',
-                    fontSize: '13px',
-                    lineHeight: '1.8',
-                    color: '#334155',
-                    wordBreak: 'break-word',
-                    overflowWrap: 'break-word',
-                    whiteSpace: 'pre-wrap',
-                  }}
-                >
-                  <ReactMarkdown>{q.a}</ReactMarkdown>
+                {/* Answer Box */}
+                <div style={{
+                  marginLeft: '45px',
+                  backgroundColor: '#f8fafc',
+                  border: '1px solid #e2e8f0',
+                  borderLeft: '5px solid #6366f1',
+                  borderRadius: '10px',
+                  padding: '24px 30px',
+                  fontSize: '15px',
+                  lineHeight: '1.6',
+                  color: '#334155',
+                  wordBreak: 'break-word'
+                }}>
+                  <div className="prose prose-slate max-w-none">
+                    <ReactMarkdown>{q.a}</ReactMarkdown>
+                  </div>
                 </div>
               </div>
-            ))}
-          </div>
+
+              {/* Slide Footer */}
+              <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '15px', color: '#94a3b8', fontSize: '11px', textAlign: 'center' }}>
+                Professional Interview Q&A Report • Generated by AI Preparation Platform
+              </div>
+            </div>
+          ))}
         </div>
+      </div>
       </div>
     </DashboardLayout>
   );
