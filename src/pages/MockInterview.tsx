@@ -1,24 +1,104 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
-import { CheckCircle2, XCircle, Clock, ArrowRight, ArrowLeft, Bot, User, Send, Mic, Loader2 } from "lucide-react";
+import { CheckCircle2, XCircle, Clock, ArrowRight, ArrowLeft, Bot, User, Send, Mic, Loader2, Upload, FileText, X, Briefcase } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
+import { useDropzone } from "react-dropzone";
+import { JOB_ROLES } from "./Prepare";
+import { Input } from "@/components/ui/input";
 
 // --- MCQ Module ---
-const questions = [
-  { q: "What is the default value of a boolean variable in Java?", options: ["true", "false", "null", "0"], correct: 1 },
-  { q: "Which data structure uses LIFO?", options: ["Queue", "Stack", "Array", "LinkedList"], correct: 1 },
-  { q: "What is the time complexity of binary search?", options: ["O(n)", "O(n²)", "O(log n)", "O(1)"], correct: 2 },
-  { q: "Which protocol is used for secure web communication?", options: ["HTTP", "FTP", "HTTPS", "SMTP"], correct: 2 },
-  { q: "What does SQL stand for?", options: ["Structured Query Language", "Simple Query Language", "Standard Query Logic", "System Query Language"], correct: 0 },
-];
+interface Question {
+  q: string;
+  options: string[];
+  correct: number;
+}
 
 const McqModule = ({ onProceed }: { onProceed: () => void }) => {
   const [phase, setPhase] = useState<"setup" | "test" | "result">("setup");
   const [current, setCurrent] = useState(0);
-  const [answers, setAnswers] = useState<(number | null)[]>(Array(questions.length).fill(null));
+  const [questions, setQuestions] = useState<Question[]>([]);
+  const [answers, setAnswers] = useState<(number | null)[]>([]);
   const [timeLeft] = useState(300);
+  const [resumeFile, setResumeFile] = useState<File | null>(null);
+  const [jobRole, setJobRole] = useState("");
+  const [jdText, setJdText] = useState("");
+  const [showRoleDropdown, setShowRoleDropdown] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const generateQuestions = async () => {
+    setIsLoading(true);
+    try {
+      const prompt = `You are an expert technical interviewer. Generate strictly 12 highly realistic, practical multiple-choice questions for a candidate applying for the role of "${jobRole}". 
+      
+Use the following Job Description (JD) to tailor the questions specifically to the required skills, tools, and responsibilities.
+DO NOT use or refer to any resume information, only base the questions on the Job Role and JD.
+
+JD:
+${jdText.substring(0, 3000)}
+
+Return the output STRICTLY as a JSON array of objects with the exact keys: "q" (the question string), "options" (an array of exactly 4 strings), and "correct" (the 0-indexed integer position of the correct option). Do not include any markdown formatting like \`\`\`json, just the pure JSON array.`;
+
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${import.meta.env.VITE_GEMINI_API_KEY}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: "You are an expert technical interviewer. Produce strictly JSON arrays." }] },
+          contents: [{ parts: [{ text: prompt }] }]
+        })
+      });
+
+      if (!response.ok) throw new Error("Failed to fetch from Gemini API");
+
+      const data = await response.json();
+      let aiText = data.candidates?.[0]?.content?.parts?.[0]?.text || "[]";
+      aiText = aiText.replace(/```json/g, "").replace(/```/g, "").trim();
+      
+      const parsedQuestions: Question[] = JSON.parse(aiText);
+      if (parsedQuestions.length === 0) throw new Error("No questions generated.");
+      
+      setQuestions(parsedQuestions);
+      setAnswers(Array(parsedQuestions.length).fill(null));
+      setPhase("test");
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to generate questions. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowRoleDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const onDrop = (acceptedFiles: File[]) => {
+    const file = acceptedFiles[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error("File size exceeds 5MB limit.");
+        return;
+      }
+      setResumeFile(file);
+    }
+  };
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop,
+    accept: {
+      'application/pdf': ['.pdf'],
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx']
+    },
+    multiple: false
+  });
 
   const handleAnswer = (optionIdx: number) => {
     const newAnswers = [...answers];
@@ -37,35 +117,111 @@ const McqModule = ({ onProceed }: { onProceed: () => void }) => {
         </div>
         <div className="glass-card p-8 space-y-6">
           <div className="space-y-4">
+            {/* Resume Upload */}
             <div>
-              <label className="text-sm font-medium text-foreground mb-2 block">Topic</label>
-              <select className="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-sm">
-                <option>General CS Fundamentals</option>
-                <option>Data Structures & Algorithms</option>
-                <option>System Design</option>
-                <option>Web Development</option>
-              </select>
+              <label className="text-sm font-medium text-foreground mb-2 flex items-center gap-1">
+                Upload Resume <span className="text-destructive">*</span>
+              </label>
+              <div 
+                {...getRootProps()} 
+                className={`border-2 border-dashed rounded-2xl p-8 text-center transition-all cursor-pointer ${
+                  isDragActive ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"
+                } ${resumeFile ? "bg-muted/30" : ""}`}
+              >
+                <input {...getInputProps()} />
+                {!resumeFile ? (
+                  <>
+                    <Upload className={`w-8 h-8 mx-auto mb-3 ${isDragActive ? "text-primary" : "text-muted-foreground"}`} />
+                    <p className="text-sm text-muted-foreground">
+                      {isDragActive ? "Drop the file here..." : "Drag & drop your resume here"}
+                    </p>
+                    <p className="text-xs text-muted-foreground/60 mt-1">PDF, DOCX up to 5MB</p>
+                  </>
+                ) : (
+                  <div className="flex flex-col items-center animate-fade-in">
+                    <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mb-3">
+                      <FileText className="w-6 h-6 text-primary" />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-foreground">{resumeFile.name}</span>
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setResumeFile(null);
+                        }}
+                        className="p-1 rounded-full hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
+
+            {/* Job Role Input */}
             <div>
-              <label className="text-sm font-medium text-foreground mb-2 block">Difficulty</label>
-              <select className="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-sm">
-                <option>Mixed</option>
-                <option>Easy</option>
-                <option>Medium</option>
-                <option>Hard</option>
-              </select>
+              <label className="text-sm font-medium text-foreground mb-2 flex items-center gap-1">
+                Job Role <span className="text-destructive">*</span>
+              </label>
+              <div className="relative" ref={dropdownRef}>
+                <Input 
+                  placeholder="e.g. Frontend Developer, Data Scientist" 
+                  className="w-full h-11 rounded-xl"
+                  value={jobRole}
+                  onChange={(e) => {
+                    setJobRole(e.target.value);
+                    setShowRoleDropdown(true);
+                  }}
+                  onFocus={() => setShowRoleDropdown(true)}
+                />
+                {showRoleDropdown && (
+                  <div className="absolute z-50 w-full mt-2 bg-background border border-border rounded-xl shadow-lg max-h-60 overflow-y-auto">
+                    {JOB_ROLES.filter(r => jobRole ? r.toLowerCase().startsWith(jobRole.toLowerCase()) : true).length > 0 ? (
+                      <ul className="py-1">
+                        {JOB_ROLES.filter(r => jobRole ? r.toLowerCase().startsWith(jobRole.toLowerCase()) : true).map(role => (
+                          <li 
+                            key={role}
+                            className="px-4 py-2.5 text-sm hover:bg-muted cursor-pointer transition-colors"
+                            onClick={() => {
+                              setJobRole(role);
+                              setShowRoleDropdown(false);
+                            }}
+                          >
+                            {role}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <div className="px-4 py-3 text-sm text-muted-foreground">
+                        No matching roles found.
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
+
+            {/* JD Input */}
             <div>
-              <label className="text-sm font-medium text-foreground mb-2 block">Number of Questions</label>
-              <select className="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-sm">
-                <option>5</option>
-                <option>10</option>
-                <option>20</option>
-              </select>
+              <label className="text-sm font-medium text-foreground mb-2 flex items-center gap-1">
+                <Briefcase className="w-4 h-4" /> Company Job Description <span className="text-destructive">*</span>
+              </label>
+              <textarea
+                className="w-full h-32 rounded-xl border border-border bg-background p-4 text-sm focus:ring-2 focus:ring-primary focus:border-transparent resize-none"
+                placeholder="Paste the job requirements and description here..."
+                value={jdText}
+                onChange={(e) => setJdText(e.target.value)}
+              />
             </div>
           </div>
-          <Button className="w-full btn-gradient h-12 text-sm" onClick={() => setPhase("test")}>
-            Start Assessment <ArrowRight className="ml-2 w-4 h-4" />
+          <Button 
+            className="w-full btn-gradient h-12 text-sm flex items-center justify-center gap-2" 
+            onClick={generateQuestions}
+            disabled={!resumeFile || !jobRole.trim() || !jdText.trim() || isLoading}
+          >
+            {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+            Start Assessment <ArrowRight className="w-4 h-4" />
           </Button>
         </div>
       </div>
