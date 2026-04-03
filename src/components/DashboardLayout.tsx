@@ -10,8 +10,7 @@ import { UserButton, SignOutButton } from "@clerk/clerk-react";
 const navItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
   { icon: BookOpen, label: "Prepare", path: "/prepare" },
-  { icon: FileCheck, label: "Tests", path: "/tests" },
-  { icon: Bot, label: "AI Interviewer", path: "/interviewer" },
+  { icon: Bot, label: "Mock Interview", path: "/mock-interview" },
   { icon: BarChart3, label: "Performance", path: "/performance" },
   { icon: Settings, label: "Settings", path: "/settings" },
 ];

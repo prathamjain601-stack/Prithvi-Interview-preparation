@@ -7,8 +7,7 @@ import { Link } from "react-router-dom";
 
 const quickActions = [
   { icon: BookOpen, title: "Start Preparation", desc: "Theory, Resume, or JD-based", path: "/prepare", color: "bg-primary/10 text-primary" },
-  { icon: FileCheck, title: "Take a Test", desc: "MCQ tests with AI feedback", path: "/tests", color: "bg-accent/10 text-accent" },
-  { icon: Bot, title: "AI Interview", desc: "Practice with AI interviewer", path: "/interviewer", color: "bg-purple-100 text-purple-600" },
+  { icon: Bot, title: "Mock Interview", desc: "MCQ and AI Interview", path: "/mock-interview", color: "bg-accent/10 text-accent" },
 ];
 
 const recentActivity = [

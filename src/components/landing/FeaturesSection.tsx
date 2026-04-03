@@ -21,8 +21,8 @@ const features = [
   },
   {
     icon: Bot,
-    title: "AI Interviewer",
-    description: "Practice with our AI interviewer in real-time conversational sessions with instant feedback.",
+    title: "Mock Interview Assessment",
+    description: "Take comprehensive mock interviews featuring MCQ assessments followed by real-time conversational AI interviewer sessions.",
     color: "bg-rose-100 text-rose-600",
   },
   {

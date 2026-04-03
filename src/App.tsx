@@ -9,8 +9,7 @@ import Login from "./pages/Login.tsx";
 import Signup from "./pages/Signup.tsx";
 import Dashboard from "./pages/Dashboard.tsx";
 import Prepare from "./pages/Prepare.tsx";
-import Tests from "./pages/Tests.tsx";
-import AIInterviewer from "./pages/AIInterviewer.tsx";
+import MockInterview from "./pages/MockInterview.tsx";
 import Performance from "./pages/Performance.tsx";
 import Onboarding from "./pages/Onboarding.tsx";
 import NotFound from "./pages/NotFound.tsx";
@@ -79,18 +78,10 @@ const App = () => (
               }
             />
             <Route
-              path="/tests"
+              path="/mock-interview"
               element={
                 <ProtectedRoute>
-                  <Tests />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/interviewer"
-              element={
-                <ProtectedRoute>
-                  <AIInterviewer />
+                  <MockInterview />
                 </ProtectedRoute>
               }
             />
