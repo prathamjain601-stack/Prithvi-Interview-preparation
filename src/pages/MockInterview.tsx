@@ -1,12 +1,29 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
-import { CheckCircle2, XCircle, Clock, ArrowRight, ArrowLeft, Bot, User, Send, Mic, Loader2, Upload, FileText, X, Briefcase } from "lucide-react";
+import { CheckCircle2, XCircle, Clock, ArrowRight, ArrowLeft, Bot, User, Loader2, Upload, FileText, X, Briefcase, PhoneOff } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import { useDropzone } from "react-dropzone";
 import { JOB_ROLES } from "./Prepare";
 import { Input } from "@/components/ui/input";
+import { useAiInterviewer } from "@/hooks/useAiInterviewer";
+import {
+  LiveKitRoom,
+  VideoTrack,
+  useTracks,
+  RoomAudioRenderer,
+  ControlBar,
+  useRoomContext,
+  useDataChannel,
+} from '@livekit/components-react';
+import { Track, RoomEvent, type RemoteParticipant } from 'livekit-client';
+import * as pdfjsLib from 'pdfjs-dist';
+import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+import "@livekit/components-styles";
+
+// Point PDF.js to the locally bundled worker (same as Prepare.tsx)
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
 // --- MCQ Module ---
 interface Question {
@@ -15,13 +32,14 @@ interface Question {
   correct: number;
 }
 
-const McqModule = ({ onProceed }: { onProceed: () => void }) => {
+const McqModule = ({ onProceed }: { onProceed: (context: { jobRole: string; jdText: string; resumeText: string }) => void }) => {
   const [phase, setPhase] = useState<"setup" | "test" | "result">("setup");
   const [current, setCurrent] = useState(0);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [answers, setAnswers] = useState<(number | null)[]>([]);
   const [timeLeft] = useState(300);
   const [resumeFile, setResumeFile] = useState<File | null>(null);
+  const [resumeText, setResumeText] = useState("");
   const [jobRole, setJobRole] = useState("");
   const [jdText, setJdText] = useState("");
   const [showRoleDropdown, setShowRoleDropdown] = useState(false);
@@ -41,7 +59,7 @@ ${jdText.substring(0, 3000)}
 
 Return the output STRICTLY as a JSON array of objects with the exact keys: "q" (the question string), "options" (an array of exactly 4 strings), and "correct" (the 0-indexed integer position of the correct option). Do not include any markdown formatting like \`\`\`json, just the pure JSON array.`;
 
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${import.meta.env.VITE_GEMINI_API_KEY}`, {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${import.meta.env.VITE_GEMINI_API_KEY}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -80,7 +98,7 @@ Return the output STRICTLY as a JSON array of objects with the exact keys: "q" (
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const onDrop = (acceptedFiles: File[]) => {
+  const onDrop = async (acceptedFiles: File[]) => {
     const file = acceptedFiles[0];
     if (file) {
       if (file.size > 5 * 1024 * 1024) {
@@ -88,6 +106,33 @@ Return the output STRICTLY as a JSON array of objects with the exact keys: "q" (
         return;
       }
       setResumeFile(file);
+      // Extract text from the file for AI context
+      try {
+        if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
+          // Parse PDF using pdfjs-dist
+          const arrayBuffer = await file.arrayBuffer();
+          const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+          let fullText = '';
+          for (let i = 1; i <= pdf.numPages; i++) {
+            const page = await pdf.getPage(i);
+            const content = await page.getTextContent();
+            const pageText = content.items
+              .map((item: any) => item.str)
+              .join(' ');
+            fullText += pageText + '\n';
+          }
+          setResumeText(fullText.substring(0, 4000));
+          console.log('[resume] Extracted', fullText.length, 'chars from PDF');
+        } else {
+          // Plain text / docx fallback
+          const text = await file.text();
+          setResumeText(text.substring(0, 4000));
+        }
+      } catch (err) {
+        console.error('[resume] Failed to extract text:', err);
+        setResumeText(file.name);
+        toast.error("Could not extract resume text. The AI will have limited context.");
+      }
     }
   };
 
@@ -256,7 +301,7 @@ Return the output STRICTLY as a JSON array of objects with the exact keys: "q" (
           })}
         </div>
 
-        <Button className="w-full btn-gradient h-12 text-sm" onClick={onProceed}>
+        <Button className="w-full btn-gradient h-12 text-sm" onClick={() => onProceed({ jobRole, jdText, resumeText })}>
           Proceed to AI Interview <ArrowRight className="ml-2 w-4 h-4" />
         </Button>
       </div>
@@ -316,141 +361,293 @@ Return the output STRICTLY as a JSON array of objects with the exact keys: "q" (
   );
 };
 
-// --- AI Interview Module ---
-interface Message {
-  role: "ai" | "user";
-  text: string;
+interface AiModuleProps {
+  context: { jobRole: string; jdText: string; resumeText: string };
 }
 
-const initialMessages: Message[] = [
-  { role: "ai", text: "Hello! I'm your AI interviewer. Your MCQ test is complete, let's move on to the conversational part. Can you tell me about yourself and your most recent project?" },
-];
+// ---------------------------------------------------------------------------
+// AvatarView: Renders the Beyond Presence avatar's video track from the room.
+// The avatar joins via the backend LiveKit agent — no frontend SDK needed.
+// ---------------------------------------------------------------------------
+const AvatarView = () => {
+  const tracks = useTracks(
+    [Track.Source.Camera, Track.Source.ScreenShare],
+    { onlySubscribed: true }
+  );
 
-const AiModule = () => {
-  const [messages, setMessages] = useState<Message[]>(initialMessages);
-  const [input, setInput] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const questionNum = Math.min(Math.ceil(messages.filter(m => m.role === "ai").length), 10);
-
-  const handleSend = async () => {
-    if (!input.trim() || isLoading) return;
-    
-    const userMsg: Message = { role: "user", text: input };
-    const newMessages = [...messages, userMsg];
-    setMessages(newMessages);
-    setInput("");
-    
-    if (questionNum >= 10) {
-      setMessages([...newMessages, {
-        role: "ai",
-        text: "Great job! That concludes our interview session. You demonstrated strong knowledge across multiple areas. I'd recommend focusing more on system design patterns for future interviews."
-      }]);
-      return;
-    }
-
-    setIsLoading(true);
-    
-    try {
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${import.meta.env.VITE_GEMINI_API_KEY}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          systemInstruction: {
-            parts: [{ text: "You are an expert technical interviewer. The user is a candidate. Evaluate the user's previous answer briefly and then ask the next interview question. Keep it concise." }]
-          },
-          contents: newMessages.map(m => ({
-            role: m.role === "ai" ? "model" : "user",
-            parts: [{ text: m.text }]
-          }))
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch from Gemini API");
-      }
-
-      const data = await response.json();
-      const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text || "I didn't quite catch that. Could you please elaborate?";
-      
-      setMessages([...newMessages, { role: "ai", text: aiText }]);
-    } catch (error) {
-      console.error(error);
-      toast.error("Failed to generate response. Please try again.");
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  // Find the avatar worker's video track.
+  // The Beyond Presence avatar participant has the attribute `lk.publish_on_behalf`
+  // or its identity contains "bey-avatar" or it is an agent participant.
+  const avatarTrack = tracks.find((t) => {
+    const p = t.participant as RemoteParticipant;
+    return (
+      p.isAgent ||
+      p.identity?.includes('bey-avatar') ||
+      p.identity?.includes('agent') ||
+      (p.attributes && 'lk.publish_on_behalf' in p.attributes)
+    );
+  });
 
   return (
-    <div className="h-[calc(100vh-7rem)] flex flex-col max-w-4xl mx-auto animate-fade-up">
-      {/* Header */}
+    <div className="w-full h-full relative bg-black/90 rounded-xl overflow-hidden shadow-2xl">
+      {avatarTrack ? (
+        <VideoTrack
+          trackRef={avatarTrack}
+          className="w-full h-full object-contain animate-fade-in"
+          style={{ objectPosition: 'center center' }}
+        />
+      ) : (
+        <div className="flex flex-col items-center justify-center h-full space-y-4 animate-pulse">
+          <div className="w-20 h-20 rounded-full bg-primary/20 flex items-center justify-center">
+            <Bot className="w-10 h-10 text-primary" />
+          </div>
+          <p className="text-white/60 text-sm font-medium">
+            Avatar is joining the room...
+          </p>
+        </div>
+      )}
+      <RoomAudioRenderer />
+      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-30">
+        <ControlBar variation="minimal" />
+      </div>
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// TranscriptPanel: Listens for agent transcription events via data channels
+// and displays them in a chat-style UI.
+// ---------------------------------------------------------------------------
+const TranscriptPanel = () => {
+  const [messages, setMessages] = useState<
+    { role: 'agent' | 'user'; text: string; timestamp: number }[]
+  >([]);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const room = useRoomContext();
+
+  useEffect(() => {
+    if (!room) return;
+
+    // Listen for transcription events from the agent
+    const handleTranscription = (
+      segments: any[],
+      participant: any
+    ) => {
+      for (const seg of segments) {
+        if (seg.final && seg.text?.trim()) {
+          const isAgent =
+            participant?.isAgent ||
+            participant?.identity?.includes('agent') ||
+            participant?.identity?.includes('bey-avatar');
+          setMessages((prev) => [
+            ...prev,
+            {
+              role: isAgent ? 'agent' : 'user',
+              text: seg.text.trim(),
+              timestamp: Date.now(),
+            },
+          ]);
+        }
+      }
+    };
+
+    room.on(RoomEvent.TranscriptionReceived, handleTranscription);
+    return () => {
+      room.off(RoomEvent.TranscriptionReceived, handleTranscription);
+    };
+  }, [room]);
+
+  // Auto-scroll to latest message
+  useEffect(() => {
+    scrollRef.current?.scrollTo({
+      top: scrollRef.current.scrollHeight,
+      behavior: 'smooth',
+    });
+  }, [messages]);
+
+  return (
+    <div className="glass-card p-4 flex flex-col" style={{ height: 'calc(100vh - 14rem)', maxHeight: 'calc(100vh - 14rem)' }}>
+      <h3 className="text-sm font-semibold text-foreground border-b border-border/50 pb-2 mb-3 shrink-0">
+        Conversation Transcript
+      </h3>
+      <div ref={scrollRef} className="flex-1 min-h-0 space-y-3 overflow-y-auto pr-1">
+        {messages.length === 0 ? (
+          <div className="text-center text-muted-foreground text-sm py-10 opacity-50">
+            Waiting for interview to start...
+          </div>
+        ) : (
+          messages.map((msg, i) => (
+            <div
+              key={i}
+              className={`p-3 rounded-xl text-sm leading-relaxed ${
+                msg.role === 'agent'
+                  ? 'bg-primary/10 rounded-tl-none border border-primary/20 mr-4'
+                  : 'bg-muted rounded-tr-none ml-4 border border-border'
+              }`}
+            >
+              <p className="text-foreground">{msg.text}</p>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// RoomContent: The main interview UI rendered inside <LiveKitRoom>.
+// ---------------------------------------------------------------------------
+const RoomContent = () => {
+  const room = useRoomContext();
+  const [agentConnected, setAgentConnected] = useState(false);
+
+  useEffect(() => {
+    if (!room) return;
+
+    const checkAgent = () => {
+      const hasAgent = Array.from(room.remoteParticipants.values()).some(
+        (p) => p.isAgent || p.identity?.includes('agent') || p.identity?.includes('bey-avatar')
+      );
+      setAgentConnected(hasAgent);
+    };
+
+    room.on(RoomEvent.ParticipantConnected, checkAgent);
+    room.on(RoomEvent.ParticipantDisconnected, checkAgent);
+    checkAgent(); // Check on mount
+
+    return () => {
+      room.off(RoomEvent.ParticipantConnected, checkAgent);
+      room.off(RoomEvent.ParticipantDisconnected, checkAgent);
+    };
+  }, [room]);
+
+  return (
+    <>
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-xl font-bold text-foreground">AI Conversational Interview</h1>
-          <p className="text-sm text-muted-foreground">Question {questionNum}/10</p>
+          <h1 className="text-xl font-bold text-foreground">Live AI Interview</h1>
+          <p className="text-sm text-muted-foreground">Beyond Presence Real-Time Avatar</p>
         </div>
-        <div className="w-48">
-          <Progress value={(questionNum / 10) * 100} className="h-2 rounded-full" />
+        <div className="flex items-center gap-2">
+          <div
+            className={`w-2 h-2 rounded-full ${
+              agentConnected
+                ? 'bg-emerald-500 animate-pulse'
+                : 'bg-amber-500 animate-pulse'
+            }`}
+          />
+          <span
+            className={`text-sm font-medium ${
+              agentConnected ? 'text-emerald-500' : 'text-amber-500'
+            }`}
+          >
+            {agentConnected ? 'Live' : 'Connecting...'}
+          </span>
         </div>
       </div>
 
-      {/* Chat */}
-      <div className="flex-1 glass-card p-6 overflow-y-auto space-y-4 mb-4">
-        {messages.map((msg, i) => (
-          <div key={i} className={`flex items-start gap-3 ${msg.role === "user" ? "flex-row-reverse" : ""}`}>
-            <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
-              msg.role === "ai" ? "bg-primary/10 text-primary" : "bg-accent/10 text-accent"
-            }`}>
-              {msg.role === "ai" ? <Bot className="w-4 h-4" /> : <User className="w-4 h-4" />}
-            </div>
-            <div className={`max-w-[70%] px-4 py-3 rounded-2xl text-sm leading-relaxed ${
-              msg.role === "ai"
-                ? "bg-muted text-foreground rounded-tl-md"
-                : "bg-primary text-primary-foreground rounded-tr-md"
-            }`}>
-              {msg.text}
-            </div>
+      <div className="flex-1 grid grid-cols-3 gap-6" style={{ minHeight: 0 }}>
+        {/* Avatar Video */}
+        <div className="col-span-2 rounded-2xl overflow-hidden border border-border shadow-xl bg-black relative" style={{ height: 'calc(100vh - 14rem)' }}>
+          <AvatarView />
+          {/* Status Overlay */}
+          <div className="absolute top-4 left-4 z-40 bg-black/50 backdrop-blur-md px-4 py-2 rounded-full flex items-center gap-2">
+            <div
+              className={`w-2 h-2 rounded-full ${
+                agentConnected ? 'bg-primary' : 'bg-amber-500 animate-pulse'
+              }`}
+            />
+            <span className="text-white text-xs font-medium">
+              {agentConnected ? 'AI Interviewer Active' : 'Waiting for agent...'}
+            </span>
           </div>
-        ))}
-      </div>
+        </div>
 
-      {/* Input */}
-      <div className="glass-card p-3 flex items-center gap-3">
-        <input
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && handleSend()}
-          placeholder="Type your response..."
-          className="flex-1 bg-transparent border-none outline-none text-sm text-foreground placeholder:text-muted-foreground px-3"
-          disabled={isLoading}
-        />
-        <Button variant="ghost" size="icon" className="rounded-xl text-muted-foreground hover:text-foreground">
-          <Mic className="w-4 h-4" />
-        </Button>
-        <Button 
-          size="icon" 
-          className="rounded-xl bg-primary text-primary-foreground" 
-          onClick={handleSend}
-          disabled={isLoading}
-        >
-          {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+        {/* Transcript Panel */}
+        <div className="col-span-1 flex flex-col gap-4">
+          <TranscriptPanel />
+          <Button
+            variant="outline"
+            className="rounded-xl text-destructive border-destructive/30 hover:bg-destructive/10"
+            onClick={() => room?.disconnect()}
+          >
+            <PhoneOff className="w-4 h-4 mr-2" /> End Interview
+          </Button>
+        </div>
+      </div>
+    </>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// AiModule: Orchestrates the session — fetches a token, then renders the room.
+// ---------------------------------------------------------------------------
+const AiModule = ({ context }: AiModuleProps) => {
+  const { session, status, error, retry } = useAiInterviewer(context);
+
+  if (status === 'connecting' || status === 'idle') {
+    return (
+      <div className="h-[calc(100vh-7rem)] flex flex-col items-center justify-center space-y-4 animate-fade-up">
+        <div className="w-16 h-16 rounded-full bg-primary/20 flex items-center justify-center">
+          <Loader2 className="w-8 h-8 text-primary animate-spin" />
+        </div>
+        <p className="text-foreground font-medium text-lg">
+          Initializing Interview Session...
+        </p>
+        <p className="text-muted-foreground text-sm max-w-sm text-center">
+          Preparing the media room and waking up your AI Interviewer.
+        </p>
+      </div>
+    );
+  }
+
+  if (status === 'error') {
+    return (
+      <div className="h-[calc(100vh-7rem)] flex flex-col items-center justify-center space-y-4 text-center">
+        <XCircle className="w-12 h-12 text-destructive" />
+        <h2 className="text-xl font-bold">Connection Failed</h2>
+        <p className="text-muted-foreground">
+          {error || 'Unable to establish secure media link.'}
+        </p>
+        <Button variant="outline" onClick={retry}>
+          Try Again
         </Button>
       </div>
+    );
+  }
+
+  return (
+    <div className="h-[calc(100vh-7rem)] flex flex-col max-w-5xl mx-auto animate-fade-up">
+      <LiveKitRoom
+        serverUrl={session!.url}
+        token={session!.token}
+        connect={true}
+        video={false}
+        audio={true}
+        onDisconnected={() => toast('Interview Session Ended.')}
+        className="flex flex-col flex-1"
+      >
+        <RoomContent />
+      </LiveKitRoom>
     </div>
   );
 };
 
 const MockInterview = () => {
   const [globalPhase, setGlobalPhase] = useState<"mcq" | "ai">("mcq");
+  const [interviewContext, setInterviewContext] = useState<{ jobRole: string; jdText: string; resumeText: string } | null>(null);
 
   return (
     <DashboardLayout>
       {globalPhase === "mcq" ? (
-        <McqModule onProceed={() => setGlobalPhase("ai")} />
+        <McqModule 
+          onProceed={(context) => {
+            setInterviewContext(context);
+            setGlobalPhase("ai");
+          }} 
+        />
       ) : (
-        <AiModule />
+        <AiModule context={interviewContext!} />
       )}
     </DashboardLayout>
   );

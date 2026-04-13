@@ -1,0 +1,66 @@
+{
+  "data": [
+    {
+      "visibility": "public",
+      "id": "70b1b917-ed16-4531-bb6c-b0bdb79449b4",
+      "name": "Yuruo - Office",
+      "status": "available"
+    },
+    {
+      "visibility": "public",
+      "id": "f30d7eef-6e71-433f-938d-cecdd8c0b653",
+      "name": "Yuruo - Medical",
+      "status": "available"
+    },
+    {
+      "visibility": "public",
+      "id": "10abd481-4989-4739-8b41-cef5b9ea085d_v2",
+      "name": "Jerome - Medical",
+      "status": "available"
+    },
+    {
+      "visibility": "public",
+      "id": "b63ba4e6-d346-45d0-ad28-5ddffaac0bd0_v2",
+      "name": "Jerome - Business",
+      "status": "available"
+    },
+    {
+      "visibility": "public",
+      "id": "c57374fa-ba3d-4c2f-8fed-9f2678bdce14_v2",
+      "name": "Jerome - Office",
+      "status": "available"
+    },
+    {
+      "visibility": "public",
+      "id": "694c83e2-8895-4a98-bd16-56332ca3f449",
+      "name": "Nelly - Office",
+      "status": "available"
+    },
+    {
+      "visibility": "public",
+      "id": "7c9ca52f-d4f7-46e1-a4b8-0c8655857cc3",
+      "name": "Laura",
+      "status": "available"
+    },
+    {
+      "visibility": "public",
+      "id": "7124071d-480e-4fdc-ad0e-a2e0680f1378",
+      "name": "Michael",
+      "status": "available"
+    },
+    {
+      "visibility": "public",
+      "id": "2bc759ab-a7e5-4b91-941d-9e42450d6546",
+      "name": "Fjolla",
+      "status": "available"
+    },
+    {
+      "visibility": "public",
+      "id": "b5bebaf9-ae80-4e43-b97f-4506136ed926",
+      "name": "Nelly",
+      "status": "available"
+    }
+  ],
+  "has_more": true,
+  "next_cursor": "b5bebaf9-ae80-4e43-b97f-4506136ed926"
+}

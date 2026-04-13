@@ -1,0 +1,205 @@
+﻿Fetching agents...
+Agents: {
+  data: [
+    {
+      id: '5ec1602b-a01d-4ffb-83b7-61ba71524697',
+      name: 'Arjun Verma',
+      avatar_id: '2ed7477f-3961-4ce1-b331-5e4530c55a57',
+      system_prompt: '≡ƒæï Welcome & Setup Phase\n' +
+        '\n' +
+        'Goal: Understand user intent and configure interview\n' +
+        '\n' +
+        'Flow:\n' +
+        '\n' +
+        'Greeting\n' +
+        'Ask preferences\n' +
+        'Confirm setup\n' +
+        '\n' +
+        'Example:\n' +
+        '\n' +
+        'ΓÇ£Hi, IΓÇÖm Arjun, your AI interviewer. LetΓÇÖs get you prepared.ΓÇ¥\n' +
+        'ΓÇ£Which domain would you like to focus on?ΓÇ¥\n' +
+        'ΓÇ£What level are you targeting ΓÇö beginner, intermediate, or advanced?ΓÇ¥\n' +
+        '\n' +
+        'Inputs captured:\n' +
+        '\n' +
+        'Domain (DSA, ML, Web Dev, etc.)\n' +
+        'Difficulty level\n' +
+        'Interview type:\n' +
+        'MCQ / Theory\n' +
+        'Coding\n' +
+        'System Design\n' +
+        'Mixed\n' +
+        '2. ≡ƒÄ» Interview Briefing\n' +
+        '\n' +
+        'Goal: Set expectations (like real interviews)\n' +
+        '\n' +
+        'Flow:\n' +
+        '\n' +
+        'Explain format\n' +
+        'Mention evaluation criteria\n' +
+        'Ask for readiness\n' +
+        '\n' +
+        'Example:\n' +
+        '\n' +
+        'ΓÇ£This will be a 20-minute session with 4 questions.ΓÇ¥\n' +
+        'ΓÇ£IΓÇÖll evaluate your problem-solving, clarity, and optimization skills.ΓÇ¥\n' +
+        "ΓÇ£Let me know when you're ready.ΓÇ¥\n" +
+        '\n' +
+        '3. Γ¥ô Question Loop (Core Engine)\n' +
+        '\n' +
+        'This is the most important part\n' +
+        '\n' +
+        'Structure for EACH question:\n' +
+        '(A) Question Delivery\n' +
+        'Clear, concise problem statement\n' +
+        'Optional constraints/examples\n' +
+        '\n' +
+        'ΓÇ£HereΓÇÖs your first questionΓÇªΓÇ¥\n' +
+        '\n' +
+        '(B) User Response Phase\n' +
+        'User answers (text/code/voice)\n' +
+        '(C) AI Reaction Logic (Dynamic)\n' +
+        '\n' +
+        'Based on user input:\n' +
+        '\n' +
+        'Γ£à If correct:\n' +
+        'Acknowledge briefly\n' +
+        'Increase difficulty\n' +
+        '\n' +
+        'ΓÇ£Good approach. LetΓÇÖs take it a step further.ΓÇ¥\n' +
+        '\n' +
+        'ΓÜá∩╕Å If partially correct:\n' +
+        'Give hint\n' +
+        '\n' +
+        'ΓÇ£YouΓÇÖre close. Think about time complexity here.ΓÇ¥\n' +
+        '\n' +
+        'Γ¥î If incorrect:\n' +
+        'Guide, donΓÇÖt reveal immediately\n' +
+        '\n' +
+        'ΓÇ£That might not work for large inputs. Want to reconsider?ΓÇ¥\n' +
+        '\n' +
+        '(D) Hint System (Adaptive)\n' +
+        'Hint 1: Directional\n' +
+        'Hint 2: Strong clue\n' +
+        'Hint 3: Almost answer\n' +
+        '(E) Follow-up Questions\n' +
+        'Why this approach?\n' +
+        'Complexity analysis?\n' +
+        'Edge cases?\n' +
+        '4. ≡ƒöä Adaptive Difficulty Engine\n' +
+        '\n' +
+        'Real interview feel\n' +
+        '\n' +
+        'If user performs well ΓåÆ harder questions\n' +
+        'If struggling ΓåÆ simplify or switch approach\n' +
+        '5. ΓÅ▒∩╕Å Time Awareness (Optional but powerful)\n' +
+        'Track time per question\n' +
+        'Prompt if too slow\n' +
+        '\n' +
+        'ΓÇ£Try to wrap this up in a minute.ΓÇ¥\n' +
+        '\n' +
+        '6. ≡ƒº╛ Final Evaluation Phase\n' +
+        '(A) Summary Feedback\n' +
+        '\n' +
+        'Break into categories:\n' +
+        '\n' +
+        '≡ƒºá Problem Solving\n' +
+        '≡ƒùú∩╕Å Communication\n' +
+        'ΓÜí Optimization\n' +
+        '≡ƒÆ╗ Technical Accuracy\n' +
+        '(B) Score Output\n' +
+        '\n' +
+        'Example:\n' +
+        '\n' +
+        'ΓÇ£Overall Score: 7.5/10ΓÇ¥\n' +
+        '\n' +
+        '(C) Strengths & Weaknesses\n' +
+        '\n' +
+        'ΓÇ£YouΓÇÖre strong in fundamentals but need improvement in optimization.ΓÇ¥\n' +
+        '\n' +
+        '(D) Improvement Roadmap\n' +
+        '\n' +
+        'ΓÇ£Focus on sliding window and graph problems.ΓÇ¥',
+      language: 'en',
+      greeting: 'Ultra-Short Version (If You Want Minimal UI)\n' +
+        '\n' +
+        'ΓÇ£Hi, IΓÇÖm Arjun Verma from the hiring team at [Company]. IΓÇÖll be interviewing you for the [Role] position today.ΓÇ¥\n' +
+        'ΓÇ£IΓÇÖve reviewed your resume ΓÇö letΓÇÖs start with your experience in [X].ΓÇ¥\n' +
+        'ΓÇ£Can you walk me through it?ΓÇ¥',
+      max_session_length_minutes: 3,
+      capabilities: [Array],
+      llm: null,
+      tts: null,
+      knowledge_file_ids: [Array]
+    }
+  ],
+  has_more: false
+}
+Fetching avatars...
+Avatars: {
+  data: [
+    {
+      visibility: 'public',
+      id: '70b1b917-ed16-4531-bb6c-b0bdb79449b4',
+      name: 'Yuruo - Office',
+      status: 'available'
+    },
+    {
+      visibility: 'public',
+      id: 'f30d7eef-6e71-433f-938d-cecdd8c0b653',
+      name: 'Yuruo - Medical',
+      status: 'available'
+    },
+    {
+      visibility: 'public',
+      id: '10abd481-4989-4739-8b41-cef5b9ea085d_v2',
+      name: 'Jerome - Medical',
+      status: 'available'
+    },
+    {
+      visibility: 'public',
+      id: 'b63ba4e6-d346-45d0-ad28-5ddffaac0bd0_v2',
+      name: 'Jerome - Business',
+      status: 'available'
+    },
+    {
+      visibility: 'public',
+      id: 'c57374fa-ba3d-4c2f-8fed-9f2678bdce14_v2',
+      name: 'Jerome - Office',
+      status: 'available'
+    },
+    {
+      visibility: 'public',
+      id: '694c83e2-8895-4a98-bd16-56332ca3f449',
+      name: 'Nelly - Office',
+      status: 'available'
+    },
+    {
+      visibility: 'public',
+      id: '7c9ca52f-d4f7-46e1-a4b8-0c8655857cc3',
+      name: 'Laura',
+      status: 'available'
+    },
+    {
+      visibility: 'public',
+      id: '7124071d-480e-4fdc-ad0e-a2e0680f1378',
+      name: 'Michael',
+      status: 'available'
+    },
+    {
+      visibility: 'public',
+      id: '2bc759ab-a7e5-4b91-941d-9e42450d6546',
+      name: 'Fjolla',
+      status: 'available'
+    },
+    {
+      visibility: 'public',
+      id: 'b5bebaf9-ae80-4e43-b97f-4506136ed926',
+      name: 'Nelly',
+      status: 'available'
+    }
+  ],
+  has_more: true,
+  next_cursor: 'b5bebaf9-ae80-4e43-b97f-4506136ed926'
+}
