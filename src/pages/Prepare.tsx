@@ -280,7 +280,7 @@ Make sure these are the EXACT types of questions asked in real industry intervie
 
 Return the output STRICTLY as a JSON array of objects with the exact keys: "q" (the question), "a" (the concise answer formatted with markdown - use \\n\\n for line breaks and standard markdown lists, NEVER use HTML tags like <br>), "difficulty" ("easy", "medium", or "hard"), and "topics" (an array of strings indicating which topics the question is based on, e.g. ["Web Dev", "ML"]). Do not include any markdown formatting like \`\`\`json, just the pure JSON array.`;
 
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${import.meta.env.VITE_GEMINI_API_KEY}`, {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${import.meta.env.VITE_GEMINI_API_KEY}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
@@ -344,7 +344,7 @@ Return the output STRICTLY as a JSON array of objects with the exact keys: "q" (
       
       Return the output STRICTLY as a JSON array of objects with the exact keys: "q" (the question), "a" (the concise answer formatted with markdown), "difficulty" ("easy", "medium", or "hard"), and "topics" (an array of strings). Do not include any markdown formatting like \`\`\`json, just the pure JSON array.`;
 
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${import.meta.env.VITE_GEMINI_API_KEY}`, {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${import.meta.env.VITE_GEMINI_API_KEY}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
