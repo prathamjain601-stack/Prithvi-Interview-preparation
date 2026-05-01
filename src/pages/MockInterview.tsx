@@ -1,4 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
+import { useUser } from "@clerk/clerk-react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { CheckCircle2, XCircle, Clock, ArrowRight, ArrowLeft, Bot, User, Loader2, Upload, FileText, X, Briefcase, PhoneOff } from "lucide-react";
@@ -21,6 +23,8 @@ import { Track, RoomEvent, type RemoteParticipant } from 'livekit-client';
 import * as pdfjsLib from 'pdfjs-dist';
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import "@livekit/components-styles";
+import { createSession, updateInterviewResults, type McqQuestionRecord, type TranscriptMessage } from "@/lib/interviewSessionStore";
+import { evaluateInterview, computeOverallScore } from "@/lib/evaluateInterview";
 
 // Point PDF.js to the locally bundled worker (same as Prepare.tsx)
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
@@ -32,7 +36,19 @@ interface Question {
   correct: number;
 }
 
-const McqModule = ({ onProceed }: { onProceed: (context: { jobRole: string; jdText: string; resumeText: string }) => void }) => {
+interface McqProceedData {
+  jobRole: string;
+  jdText: string;
+  resumeText: string;
+  mcqData: {
+    questions: McqQuestionRecord[];
+    correct: number;
+    total: number;
+    timeTakenSeconds: number;
+  };
+}
+
+const McqModule = ({ onProceed }: { onProceed: (data: McqProceedData) => void }) => {
   const [phase, setPhase] = useState<"setup" | "test" | "result">("setup");
   const [current, setCurrent] = useState(0);
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -319,7 +335,17 @@ Return the output STRICTLY as a JSON array of objects with the exact keys: "q" (
           })}
         </div>
 
-        <Button className="w-full btn-gradient h-12 text-sm" onClick={() => onProceed({ jobRole, jdText, resumeText })}>
+        <Button className="w-full btn-gradient h-12 text-sm" onClick={() => onProceed({
+          jobRole,
+          jdText,
+          resumeText,
+          mcqData: {
+            questions: questions.map((q, i) => ({ ...q, userAnswer: answers[i] })),
+            correct: score,
+            total: questions.length,
+            timeTakenSeconds: 360 - timeLeft,
+          },
+        })}>
           Proceed to AI Interview <ArrowRight className="ml-2 w-4 h-4" />
         </Button>
       </div>
@@ -436,10 +462,8 @@ const AvatarView = () => {
 // TranscriptPanel: Listens for agent transcription events via data channels
 // and displays them in a chat-style UI.
 // ---------------------------------------------------------------------------
-const TranscriptPanel = () => {
-  const [messages, setMessages] = useState<
-    { role: 'agent' | 'user'; text: string; timestamp: number }[]
-  >([]);
+const TranscriptPanel = ({ onMessagesChange }: { onMessagesChange?: (msgs: TranscriptMessage[]) => void }) => {
+  const [messages, setMessages] = useState<TranscriptMessage[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const room = useRoomContext();
 
@@ -457,14 +481,17 @@ const TranscriptPanel = () => {
             participant?.isAgent ||
             participant?.identity?.includes('agent') ||
             participant?.identity?.includes('bey-avatar');
-          setMessages((prev) => [
-            ...prev,
-            {
-              role: isAgent ? 'agent' : 'user',
-              text: seg.text.trim(),
-              timestamp: Date.now(),
-            },
-          ]);
+          setMessages((prev) => {
+            const updated = [
+              ...prev,
+              {
+                role: (isAgent ? 'agent' : 'user') as 'agent' | 'user',
+                text: seg.text.trim(),
+                timestamp: Date.now(),
+              },
+            ];
+            return updated;
+          });
         }
       }
     };
@@ -474,6 +501,11 @@ const TranscriptPanel = () => {
       room.off(RoomEvent.TranscriptionReceived, handleTranscription);
     };
   }, [room]);
+
+  // Notify parent of transcript changes
+  useEffect(() => {
+    onMessagesChange?.(messages);
+  }, [messages, onMessagesChange]);
 
   // Auto-scroll to latest message
   useEffect(() => {
@@ -515,7 +547,7 @@ const TranscriptPanel = () => {
 // ---------------------------------------------------------------------------
 // RoomContent: The main interview UI rendered inside <LiveKitRoom>.
 // ---------------------------------------------------------------------------
-const RoomContent = () => {
+const RoomContent = ({ onTranscriptChange }: { onTranscriptChange: (msgs: TranscriptMessage[]) => void }) => {
   const room = useRoomContext();
   const [agentConnected, setAgentConnected] = useState(false);
 
@@ -538,6 +570,10 @@ const RoomContent = () => {
       room.off(RoomEvent.ParticipantDisconnected, checkAgent);
     };
   }, [room]);
+
+  const handleTranscriptChange = useCallback((msgs: TranscriptMessage[]) => {
+    onTranscriptChange(msgs);
+  }, [onTranscriptChange]);
 
   return (
     <>
@@ -583,7 +619,7 @@ const RoomContent = () => {
 
         {/* Transcript Panel */}
         <div className="col-span-1 flex flex-col gap-4">
-          <TranscriptPanel />
+          <TranscriptPanel onMessagesChange={handleTranscriptChange} />
           <Button
             variant="outline"
             className="rounded-xl text-destructive border-destructive/30 hover:bg-destructive/10"
@@ -599,9 +635,82 @@ const RoomContent = () => {
 
 // ---------------------------------------------------------------------------
 // AiModule: Orchestrates the session — fetches a token, then renders the room.
+// Handles evaluation + save on disconnect.
 // ---------------------------------------------------------------------------
-const AiModule = ({ context }: AiModuleProps) => {
+interface AiModuleFullProps {
+  context: { jobRole: string; jdText: string; resumeText: string };
+  sessionId: string;
+  mcqScorePercent: number;
+}
+
+const AiModule = ({ context, sessionId, mcqScorePercent }: AiModuleFullProps) => {
   const { session, status, error, retry } = useAiInterviewer(context);
+  const navigate = useNavigate();
+  const transcriptRef = useRef<TranscriptMessage[]>([]);
+  const interviewStartRef = useRef<number>(Date.now());
+  const [isEvaluating, setIsEvaluating] = useState(false);
+
+  const handleTranscriptChange = useCallback((msgs: TranscriptMessage[]) => {
+    transcriptRef.current = msgs;
+  }, []);
+
+  const handleDisconnect = useCallback(async () => {
+    const transcript = transcriptRef.current;
+    const durationSeconds = Math.round((Date.now() - interviewStartRef.current) / 1000);
+
+    if (transcript.length < 2) {
+      toast('Interview session ended (no evaluation — too short).');
+      navigate('/performance');
+      return;
+    }
+
+    setIsEvaluating(true);
+    toast('Evaluating your interview performance...');
+
+    try {
+      const evaluation = await evaluateInterview(transcript, context.jobRole, context.jdText);
+      const overallScore = computeOverallScore(mcqScorePercent, evaluation.scores);
+
+      if (sessionId) {
+        await updateInterviewResults(sessionId, {
+          transcript,
+          durationSeconds,
+          scores: evaluation.scores,
+          feedback: evaluation.feedback,
+          strengths: evaluation.strengths,
+          improvements: evaluation.improvements,
+          overallScore,
+        });
+
+        toast.success('Interview evaluation complete!');
+        navigate(`/session/${sessionId}`);
+      } else {
+        // Session wasn't saved (RLS or other error) — show feedback but go to performance
+        toast.success('Interview evaluated! (Session could not be saved — check Supabase RLS)');
+        navigate('/performance');
+      }
+    } catch (err) {
+      console.error('[AiModule] Evaluation/save failed:', err);
+      toast.error('Failed to save evaluation. Redirecting to performance...');
+      navigate('/performance');
+    }
+  }, [context, sessionId, mcqScorePercent, navigate]);
+
+  if (isEvaluating) {
+    return (
+      <div className="h-[calc(100vh-7rem)] flex flex-col items-center justify-center space-y-4 animate-fade-up">
+        <div className="w-16 h-16 rounded-full bg-primary/20 flex items-center justify-center">
+          <Loader2 className="w-8 h-8 text-primary animate-spin" />
+        </div>
+        <p className="text-foreground font-medium text-lg">
+          Evaluating Your Performance...
+        </p>
+        <p className="text-muted-foreground text-sm max-w-sm text-center">
+          Our AI is analyzing your interview transcript and generating detailed feedback.
+        </p>
+      </div>
+    );
+  }
 
   if (status === 'connecting' || status === 'idle') {
     return (
@@ -642,30 +751,58 @@ const AiModule = ({ context }: AiModuleProps) => {
         connect={true}
         video={false}
         audio={true}
-        onDisconnected={() => toast('Interview Session Ended.')}
+        onDisconnected={handleDisconnect}
         className="flex flex-col flex-1"
       >
-        <RoomContent />
+        <RoomContent onTranscriptChange={handleTranscriptChange} />
       </LiveKitRoom>
     </div>
   );
 };
 
 const MockInterview = () => {
+  const { user } = useUser();
+  const navigate = useNavigate();
   const [globalPhase, setGlobalPhase] = useState<"mcq" | "ai">("mcq");
   const [interviewContext, setInterviewContext] = useState<{ jobRole: string; jdText: string; resumeText: string } | null>(null);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [mcqScorePercent, setMcqScorePercent] = useState(0);
+
+  const handleMcqProceed = useCallback(async (data: McqProceedData) => {
+    if (!user?.id) {
+      toast.error('You must be logged in.');
+      return;
+    }
+
+    try {
+      const mcqPercent = data.mcqData.total > 0
+        ? Math.round((data.mcqData.correct / data.mcqData.total) * 100)
+        : 0;
+
+      const id = await createSession(user.id, data.jobRole, data.mcqData);
+      setSessionId(id);
+      setMcqScorePercent(mcqPercent);
+      setInterviewContext({ jobRole: data.jobRole, jdText: data.jdText, resumeText: data.resumeText });
+      setGlobalPhase("ai");
+    } catch (err) {
+      console.error('[MockInterview] Failed to save MCQ:', err);
+      toast.error('Failed to save MCQ results. Proceeding anyway...');
+      // Still proceed even if save fails
+      setInterviewContext({ jobRole: data.jobRole, jdText: data.jdText, resumeText: data.resumeText });
+      setGlobalPhase("ai");
+    }
+  }, [user]);
 
   return (
     <DashboardLayout>
       {globalPhase === "mcq" ? (
-        <McqModule 
-          onProceed={(context) => {
-            setInterviewContext(context);
-            setGlobalPhase("ai");
-          }} 
-        />
+        <McqModule onProceed={handleMcqProceed} />
       ) : (
-        <AiModule context={interviewContext!} />
+        <AiModule
+          context={interviewContext!}
+          sessionId={sessionId!}
+          mcqScorePercent={mcqScorePercent}
+        />
       )}
     </DashboardLayout>
   );

@@ -11,6 +11,7 @@ import Dashboard from "./pages/Dashboard.tsx";
 import Prepare from "./pages/Prepare.tsx";
 import MockInterview from "./pages/MockInterview.tsx";
 import Performance from "./pages/Performance.tsx";
+import SessionReport from "./pages/SessionReport.tsx";
 import Onboarding from "./pages/Onboarding.tsx";
 import NotFound from "./pages/NotFound.tsx";
 
@@ -90,6 +91,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <Performance />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/session/:id"
+              element={
+                <ProtectedRoute>
+                  <SessionReport />
                 </ProtectedRoute>
               }
             />
