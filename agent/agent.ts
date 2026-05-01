@@ -121,9 +121,11 @@ CRITICAL Instructions:
     });
 
     // 6. Configure TTS using LiveKit Inference (Cartesia Sonic 2)
+    //    Specify sampleRate 24000 for better compatibility with Beyond Presence avatars
     console.log('[agent] Configuring TTS...');
     const ttsInstance = new inference.TTS({
       model: 'cartesia/sonic-2',
+      sampleRate: 24000,
     });
 
     // 7. Create the agent session with voice pipeline
@@ -135,8 +137,25 @@ CRITICAL Instructions:
       vad: ctx.proc.userData.vad! as silero.VAD,
     });
 
-    // 8. Create Beyond Presence avatar
-    //    BEY_API_KEY is read automatically from env vars
+    // 8. Start the agent session FIRST
+    //    This creates RoomIO which sets up default audio I/O (ParticipantAudioOutput).
+    //    We must start the session before the avatar so that avatar.start() can
+    //    overwrite session.output.audio with DataStreamAudioOutput — which routes
+    //    TTS audio to the Beyond Presence avatar for lip-synced video rendering.
+    console.log('[agent] Starting agent session...');
+    await session.start({
+      agent: new voice.Agent({
+        instructions: systemPrompt,
+      }),
+      room: ctx.room,
+    });
+    console.log('[agent] Agent session started!');
+
+    // 9. Create and start the Beyond Presence avatar AFTER the session
+    //    avatar.start() sets session.output.audio = DataStreamAudioOutput,
+    //    which streams TTS audio to the avatar participant via data channels.
+    //    The avatar uses this audio to generate lip-synced video in real time.
+    //    BEY_API_KEY is read automatically from env vars.
     console.log('[agent] Creating Beyond Presence avatar session...');
     const avatar = new AvatarSession({
       avatarId: BEY_AVATAR_ID,
@@ -146,20 +165,11 @@ CRITICAL Instructions:
       console.log('[agent] Starting avatar...');
       await avatar.start(session, ctx.room);
       console.log('[agent] Avatar started successfully!');
+      console.log('[agent] Audio output type:', session.output.audio?.constructor.name);
     } catch (err) {
       console.error('[agent] Failed to start avatar:', err);
       // Continue without avatar — the agent can still speak
     }
-
-    // 9. Start the agent session
-    console.log('[agent] Starting agent session...');
-    await session.start({
-      agent: new voice.Agent({
-        instructions: systemPrompt,
-      }),
-      room: ctx.room,
-    });
-    console.log('[agent] Agent session started!');
 
     // 10. Generate initial greeting
     session.generateReply({
