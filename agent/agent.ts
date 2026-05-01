@@ -120,12 +120,18 @@ CRITICAL Instructions:
       model: 'deepgram/nova-3',
     });
 
-    // 6. Configure TTS using LiveKit Inference (Cartesia Sonic 2)
-    //    Specify sampleRate 24000 for better compatibility with Beyond Presence avatars
+    // 6. Configure TTS using LiveKit Inference (Cartesia Sonic Turbo)
+    //    sonic-turbo has ~2x lower latency than sonic-2, producing audio chunks
+    //    faster so the Beyond Presence avatar's lip movements stay in sync.
+    //    add_timestamps provides word-level timing markers for better A2V alignment.
     console.log('[agent] Configuring TTS...');
     const ttsInstance = new inference.TTS({
-      model: 'cartesia/sonic-2',
+      model: 'cartesia/sonic-turbo',
       sampleRate: 24000,
+      modelOptions: {
+        add_timestamps: true,
+        max_buffer_delay_ms: 50,
+      },
     });
 
     // 7. Create the agent session with voice pipeline
@@ -148,6 +154,12 @@ CRITICAL Instructions:
         instructions: systemPrompt,
       }),
       room: ctx.room,
+      // Disable transcription-audio sync because the avatar replaces audio output
+      // with DataStreamAudioOutput. The default TranscriptionSynchronizer would
+      // wait forever for playback events from the old ParticipantAudioOutput.
+      outputOptions: {
+        syncTranscription: false,
+      },
     });
     console.log('[agent] Agent session started!');
 

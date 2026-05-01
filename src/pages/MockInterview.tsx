@@ -37,7 +37,7 @@ const McqModule = ({ onProceed }: { onProceed: (context: { jobRole: string; jdTe
   const [current, setCurrent] = useState(0);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [answers, setAnswers] = useState<(number | null)[]>([]);
-  const [timeLeft] = useState(300);
+  const [timeLeft, setTimeLeft] = useState(360);
   const [resumeFile, setResumeFile] = useState<File | null>(null);
   const [resumeText, setResumeText] = useState("");
   const [jobRole, setJobRole] = useState("");
@@ -87,6 +87,24 @@ Return the output STRICTLY as a JSON array of objects with the exact keys: "q" (
       setIsLoading(false);
     }
   };
+
+  // 6-minute countdown timer — auto-submits when it reaches 0
+  useEffect(() => {
+    if (phase !== "test") return;
+    setTimeLeft(360); // reset to 6 minutes when test starts
+    const interval = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          setPhase("result");
+          toast.info("Time's up! Your test has been auto-submitted.");
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [phase]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -312,7 +330,7 @@ Return the output STRICTLY as a JSON array of objects with the exact keys: "q" (
     <div className="max-w-3xl mx-auto space-y-6 animate-fade-up">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <div className={`flex items-center gap-2 text-sm font-medium ${timeLeft <= 60 ? 'text-destructive animate-pulse' : 'text-muted-foreground'}`}>
           <Clock className="w-4 h-4" />
           {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}
         </div>
