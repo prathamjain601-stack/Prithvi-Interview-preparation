@@ -81,18 +81,18 @@ const TrendLine = ({ data, width = 400, height = 120 }: { data: number[]; width?
 // ---------------------------------------------------------------------------
 const MiniRadar = ({
   scores,
-  size = 180,
+  size = 300,
 }: {
   scores: { technical: number; communication: number; problemSolving: number; confidence: number };
   size?: number;
 }) => {
   const center = size / 2;
-  const radius = size / 2 - 24;
+  const radius = size / 2 - 60;
   const labels = [
-    { key: "technical" as const, label: "Tech" },
-    { key: "communication" as const, label: "Comm" },
-    { key: "problemSolving" as const, label: "Problem" },
-    { key: "confidence" as const, label: "Confid" },
+    { key: "technical" as const, label: "Technical" },
+    { key: "communication" as const, label: "Communication" },
+    { key: "problemSolving" as const, label: "Problem Solving" },
+    { key: "confidence" as const, label: "Confidence" },
   ];
 
   const angleStep = (2 * Math.PI) / labels.length;
@@ -115,20 +115,20 @@ const MiniRadar = ({
       {rings.map((v) => {
         const pts = labels.map((_, i) => getPoint(i, v));
         const path = pts.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ") + " Z";
-        return <path key={v} d={path} fill="none" stroke="currentColor" className="text-border" strokeWidth="1" opacity={0.3} />;
+        return <path key={v} d={path} fill="none" stroke="currentColor" className="text-border" strokeWidth="1" opacity={0.8} />;
       })}
       {labels.map((_, i) => {
         const end = getPoint(i, 10);
-        return <line key={i} x1={center} y1={center} x2={end.x} y2={end.y} stroke="currentColor" className="text-border" strokeWidth="1" opacity={0.2} />;
+        return <line key={i} x1={center} y1={center} x2={end.x} y2={end.y} stroke="currentColor" className="text-border" strokeWidth="1" opacity={0.6} />;
       })}
       <path d={dataPath} fill="hsl(var(--primary))" fillOpacity={0.2} stroke="hsl(var(--primary))" strokeWidth="2" />
       {dataPoints.map((p, i) => (
         <circle key={i} cx={p.x} cy={p.y} r={3} fill="hsl(var(--primary))" />
       ))}
       {labels.map((l, i) => {
-        const labelPt = getPoint(i, 12.5);
+        const labelPt = getPoint(i, 13);
         return (
-          <text key={l.key} x={labelPt.x} y={labelPt.y} textAnchor="middle" dominantBaseline="middle" className="fill-foreground text-[9px] font-medium">
+          <text key={l.key} x={labelPt.x} y={labelPt.y} textAnchor="middle" dominantBaseline="middle" className="fill-foreground text-xs font-medium">
             {l.label}
           </text>
         );
