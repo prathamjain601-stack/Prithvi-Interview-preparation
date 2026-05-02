@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useUser } from "@clerk/clerk-react";
-import { Brain, User, Calendar, Briefcase, ChevronRight } from "lucide-react";
+import { User, Calendar, Briefcase, ChevronRight } from "lucide-react";
+import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -74,10 +75,8 @@ const Onboarding = () => {
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <div className="inline-flex items-center gap-2.5 mb-6">
-            <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center">
-              <Brain className="w-5 h-5 text-primary-foreground" />
-            </div>
-            <span className="text-xl font-bold text-foreground">InterviewAI</span>
+            <Logo className="w-10 h-10 text-primary" />
+            <span className="text-xl font-bold text-foreground">PrepPrithvi</span>
           </div>
           <h1 className="text-2xl font-bold text-foreground">Complete your profile</h1>
           <p className="text-sm text-muted-foreground mt-1">Tell us a bit more about yourself to personalize your experience</p>

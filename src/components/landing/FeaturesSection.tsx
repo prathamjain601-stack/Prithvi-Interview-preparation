@@ -44,8 +44,8 @@ const FeaturesSection = () => {
     <section id="features" className="py-24 bg-background">
       <div className="container mx-auto px-6">
         <div className="text-center max-w-2xl mx-auto mb-16">
-          <p className="text-sm font-semibold text-primary uppercase tracking-wider mb-3">Features</p>
-          <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">
+          <p className="text-sm font-semibold text-purple-600 uppercase tracking-wider mb-3">Features</p>
+          <h2 className="text-3xl md:text-4xl font-extrabold text-purple-900 mb-4">
             Everything you need to{" "}
             <span className="gradient-text">nail your interview</span>
           </h2>

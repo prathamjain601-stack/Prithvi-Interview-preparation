@@ -4,7 +4,7 @@ const testimonials = [
   {
     name: "Sarah Chen",
     role: "Software Engineer at Google",
-    content: "InterviewAI completely transformed my preparation. The AI interviewer felt incredibly realistic, and the feedback was spot-on. Landed my dream job!",
+    content: "PrepPrithvi completely transformed my preparation. The AI interviewer felt incredibly realistic, and the feedback was spot-on. Landed my dream job!",
     rating: 5,
   },
   {
@@ -26,12 +26,12 @@ const TestimonialsSection = () => {
     <section id="testimonials" className="py-24 bg-secondary/50">
       <div className="container mx-auto px-6">
         <div className="text-center max-w-2xl mx-auto mb-16">
-          <p className="text-sm font-semibold text-primary uppercase tracking-wider mb-3">Testimonials</p>
-          <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">
+          <p className="text-sm font-semibold text-purple-600 uppercase tracking-wider mb-3">Testimonials</p>
+          <h2 className="text-3xl md:text-4xl font-extrabold text-purple-900 mb-4">
             Loved by candidates worldwide
           </h2>
           <p className="text-muted-foreground text-lg">
-            See how InterviewAI has helped thousands ace their interviews.
+            See how PrepPrithvi has helped thousands ace their interviews.
           </p>
         </div>
 

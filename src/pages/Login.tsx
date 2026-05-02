@@ -1,6 +1,6 @@
 import { SignIn } from "@clerk/clerk-react";
 import { Link } from "react-router-dom";
-import { Brain } from "lucide-react";
+import { Logo } from "@/components/Logo";
 
 const Login = () => {
   return (
@@ -8,10 +8,8 @@ const Login = () => {
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <Link to="/" className="inline-flex items-center gap-2.5 mb-6">
-            <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center">
-              <Brain className="w-5 h-5 text-primary-foreground" />
-            </div>
-            <span className="text-xl font-bold text-foreground">InterviewAI</span>
+            <Logo className="w-10 h-10 text-primary" />
+            <span className="text-xl font-bold text-foreground">PrepPrithvi</span>
           </Link>
           <h1 className="text-2xl font-bold text-foreground">Welcome back</h1>
           <p className="text-sm text-muted-foreground mt-1">Sign in to continue your preparation</p>

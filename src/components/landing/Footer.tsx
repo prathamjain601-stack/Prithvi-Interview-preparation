@@ -1,5 +1,5 @@
-import { Brain } from "lucide-react";
 import { Link } from "react-router-dom";
+import { Logo } from "@/components/Logo";
 
 const Footer = () => {
   return (
@@ -8,10 +8,8 @@ const Footer = () => {
         <div className="grid md:grid-cols-4 gap-10">
           <div className="space-y-4">
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-                <Brain className="w-4 h-4 text-primary-foreground" />
-              </div>
-              <span className="text-lg font-bold text-background">InterviewAI</span>
+              <Logo className="w-8 h-8 text-primary" />
+              <span className="text-lg font-bold text-background">PrepPrithvi</span>
             </div>
             <p className="text-sm leading-relaxed">
               AI-powered interview preparation to help you land your dream job.
@@ -37,7 +35,7 @@ const Footer = () => {
         </div>
 
         <div className="border-t border-background/10 mt-12 pt-8 text-center text-sm">
-          © 2026 InterviewAI. All rights reserved.
+          © 2026 PrepPrithvi. All rights reserved.
         </div>
       </div>
     </footer>

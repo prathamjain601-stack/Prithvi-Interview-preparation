@@ -1,8 +1,9 @@
 import { ReactNode } from "react";
 import { Link, useLocation } from "react-router-dom";
 import {
-  LayoutDashboard, BookOpen, FileCheck, Bot, BarChart3, Settings, Brain, LogOut, ChevronLeft, ChevronRight,
+  LayoutDashboard, BookOpen, FileCheck, Bot, BarChart3, Settings, LogOut, ChevronLeft, ChevronRight,
 } from "lucide-react";
+import { Logo } from "@/components/Logo";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { UserButton, SignOutButton } from "@clerk/clerk-react";
@@ -32,10 +33,8 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
       )}>
         <div className="h-16 flex items-center px-4 border-b border-sidebar-border">
           <Link to="/" className="flex items-center gap-2.5 overflow-hidden">
-            <div className="w-8 h-8 rounded-lg bg-sidebar-primary flex items-center justify-center shrink-0">
-              <Brain className="w-4 h-4 text-sidebar-primary-foreground" />
-            </div>
-            {!collapsed && <span className="text-base font-bold text-sidebar-primary-foreground whitespace-nowrap">InterviewAI</span>}
+            <Logo className="w-8 h-8 text-sidebar-primary shrink-0" />
+            {!collapsed && <span className="text-base font-bold text-sidebar-primary-foreground whitespace-nowrap">PrepPrithvi</span>}
           </Link>
         </div>
 
