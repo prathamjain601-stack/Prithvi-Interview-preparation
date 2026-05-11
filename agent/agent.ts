@@ -1,7 +1,6 @@
 import 'dotenv/config';
 import {
   type JobContext,
-  type JobProcess,
   ServerOptions,
   cli,
   defineAgent,
@@ -33,11 +32,13 @@ Evaluate answers for correctness, clarity, and depth. Provide brief feedback aft
 After 4-5 questions, wrap up with a summary of strengths and areas for improvement.`;
 
 export default defineAgent({
-  prewarm: async (proc: JobProcess) => {
-    proc.userData.vad = await silero.VAD.load();
-  },
   entry: async (ctx: JobContext) => {
-    console.log('[agent] Job received, connecting to room...');
+    console.log('[agent] Job received, loading VAD model...');
+
+    // 0. Load Silero VAD inside entry (instead of prewarm) to avoid
+    //    the supervised-process initialization timeout on slow CPUs.
+    const vad = await silero.VAD.load();
+    console.log('[agent] VAD model loaded.');
 
     // 1. Connect to the room
     await ctx.connect();
@@ -140,7 +141,7 @@ CRITICAL Instructions:
       llm: llmInstance,
       tts: ttsInstance,
       stt: sttInstance,
-      vad: ctx.proc.userData.vad! as silero.VAD,
+      vad: vad,
     });
 
     // 8. Start the agent session FIRST
