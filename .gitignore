@@ -45,3 +45,7 @@ coverage/
 # Bun
 bun.lockb
 bun.lock
+
+# Test/scratch files with API keys
+test_api.js
+test-bey.mjs

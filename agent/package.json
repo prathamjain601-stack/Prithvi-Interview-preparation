@@ -7,10 +7,10 @@
     "start": "tsx agent.ts start"
   },
   "dependencies": {
-    "@livekit/agents": "^1.2.6",
-    "@livekit/agents-plugin-bey": "^1.2.6",
-    "@livekit/agents-plugin-google": "^1.2.6",
-    "@livekit/agents-plugin-silero": "^1.2.6",
+    "@livekit/agents": "^1.4.11",
+    "@livekit/agents-plugin-bey": "^1.4.11",
+    "@livekit/agents-plugin-google": "^1.4.11",
+    "@livekit/agents-plugin-silero": "^1.4.11",
     "@livekit/rtc-node": "^0.13.25",
     "cors": "^2.8.6",
     "dotenv": "^16.4.7",

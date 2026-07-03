@@ -75,7 +75,7 @@ ${jdText.substring(0, 3000)}
 
 Return the output STRICTLY as a JSON array of objects with the exact keys: "q" (the question string), "options" (an array of exactly 4 strings), and "correct" (the 0-indexed integer position of the correct option). Do not include any markdown formatting like \`\`\`json, just the pure JSON array.`;
 
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${import.meta.env.VITE_GEMINI_API_KEY}`, {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${import.meta.env.VITE_GEMINI_API_KEY}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -463,6 +463,8 @@ const AvatarView = () => {
 // and displays them in a chat-style UI.
 // ---------------------------------------------------------------------------
 const TranscriptPanel = ({ onMessagesChange }: { onMessagesChange?: (msgs: TranscriptMessage[]) => void }) => {
+  // Map of segmentId -> { role, text } for deduplication
+  const segmentsRef = useRef<Map<string, { role: 'agent' | 'user'; text: string; timestamp: number }>>(new Map());
   const [messages, setMessages] = useState<TranscriptMessage[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const room = useRoomContext();
@@ -470,30 +472,45 @@ const TranscriptPanel = ({ onMessagesChange }: { onMessagesChange?: (msgs: Trans
   useEffect(() => {
     if (!room) return;
 
-    // Listen for transcription events from the agent
     const handleTranscription = (
       segments: any[],
       participant: any
     ) => {
+      const isAgent =
+        participant?.isAgent ||
+        participant?.identity?.includes('agent') ||
+        participant?.identity?.includes('bey-avatar');
+
+      let changed = false;
       for (const seg of segments) {
-        if (seg.final && seg.text?.trim()) {
-          const isAgent =
-            participant?.isAgent ||
-            participant?.identity?.includes('agent') ||
-            participant?.identity?.includes('bey-avatar');
-          setMessages((prev) => {
-            const updated = [
-              ...prev,
-              {
-                role: (isAgent ? 'agent' : 'user') as 'agent' | 'user',
-                text: seg.text.trim(),
-                timestamp: Date.now(),
-              },
-            ];
-            return updated;
-          });
+        if (!seg.final || !seg.text?.trim()) continue;
+
+        const segId = seg.id ?? seg.segmentId ?? `seg-${Date.now()}-${Math.random()}`;
+        segmentsRef.current.set(segId, {
+          role: isAgent ? 'agent' : 'user',
+          text: seg.text.trim(),
+          timestamp: Date.now(),
+        });
+        changed = true;
+      }
+
+      if (!changed) return;
+
+      // Rebuild messages: merge consecutive same-speaker segments into turns
+      const ordered = Array.from(segmentsRef.current.values());
+      const merged: TranscriptMessage[] = [];
+
+      for (const seg of ordered) {
+        const last = merged[merged.length - 1];
+        if (last && last.role === seg.role) {
+          // Append to the existing turn with a space
+          last.text += ' ' + seg.text;
+        } else {
+          merged.push({ ...seg });
         }
       }
+
+      setMessages(merged);
     };
 
     room.on(RoomEvent.TranscriptionReceived, handleTranscription);

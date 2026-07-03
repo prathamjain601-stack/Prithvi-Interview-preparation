@@ -9,8 +9,19 @@ import {
 } from '@livekit/agents';
 import * as google from '@livekit/agents-plugin-google';
 import { AvatarSession } from '@livekit/agents-plugin-bey';
-import * as silero from '@livekit/agents-plugin-silero';
+// Silero VAD is now bundled in @livekit/agents v1.5+ — no separate import needed.
 import { fileURLToPath } from 'node:url';
+
+// ---------------------------------------------------------------------------
+// Global safety net — prevent the process from crashing on unhandled errors.
+// Without this, a single Gemini API 429 or network blip kills the agent.
+// ---------------------------------------------------------------------------
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('[agent] ⚠️ Unhandled promise rejection:', reason);
+});
+process.on('uncaughtException', (err) => {
+  console.error('[agent] ⚠️ Uncaught exception:', err);
+});
 
 // ---------------------------------------------------------------------------
 // Beyond Presence AI Interview Agent
@@ -33,12 +44,8 @@ After 4-5 questions, wrap up with a summary of strengths and areas for improveme
 
 export default defineAgent({
   entry: async (ctx: JobContext) => {
-    console.log('[agent] Job received, loading VAD model...');
-
-    // 0. Load Silero VAD inside entry (instead of prewarm) to avoid
-    //    the supervised-process initialization timeout on slow CPUs.
-    const vad = await silero.VAD.load();
-    console.log('[agent] VAD model loaded.');
+    console.log('[agent] Job received...');
+    // VAD is now bundled in @livekit/agents v1.5+ — no explicit load needed.
 
     // 1. Connect to the room
     await ctx.connect();
@@ -111,8 +118,16 @@ CRITICAL Instructions:
     //    but we also pass it explicitly for safety.
     console.log('[agent] Configuring LLM...');
     const llmInstance = new google.LLM({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.5-flash',
       apiKey: GOOGLE_API_KEY,
+      // Disable deep reasoning for real-time voice — "minimal" gives fastest
+      // time-to-first-token so the avatar responds without a multi-second pause.
+      // includeThoughts: false prevents internal reasoning text from being
+      // sent to TTS (which would cause letter-by-letter spelling).
+      thinkingConfig: {
+        thinkingLevel: 'minimal',
+        includeThoughts: false,
+      },
     });
 
     // 5. Configure STT using LiveKit Inference (Deepgram Nova 3)
@@ -124,15 +139,14 @@ CRITICAL Instructions:
     // 6. Configure TTS using LiveKit Inference (Cartesia Sonic Turbo)
     //    sonic-turbo has ~2x lower latency than sonic-2, producing audio chunks
     //    faster so the Beyond Presence avatar's lip movements stay in sync.
-    //    add_timestamps provides word-level timing markers for better A2V alignment.
+    //    NOTE: add_timestamps was removed because it fragments transcription
+    //    into word-level segments (causing no-space text). max_buffer_delay_ms
+    //    was removed because 50ms caused the TTS to receive tiny text chunks
+    //    and spell out words letter-by-letter.
     console.log('[agent] Configuring TTS...');
     const ttsInstance = new inference.TTS({
       model: 'cartesia/sonic-turbo',
       sampleRate: 24000,
-      modelOptions: {
-        add_timestamps: true,
-        max_buffer_delay_ms: 50,
-      },
     });
 
     // 7. Create the agent session with voice pipeline
@@ -141,7 +155,15 @@ CRITICAL Instructions:
       llm: llmInstance,
       tts: ttsInstance,
       stt: sttInstance,
-      vad: vad,
+      // VAD uses the built-in bundled Silero by default in v1.5+
+    });
+
+    // ----- Error listeners — log instead of silently crashing -----
+    session.on('error', (err: any) => {
+      console.error('[agent] ⚠️ AgentSession error (will attempt to continue):', err?.message || err);
+    });
+    session.on('close', () => {
+      console.log('[agent] AgentSession closed.');
     });
 
     // 8. Start the agent session FIRST
@@ -198,5 +220,8 @@ cli.runApp(
   new ServerOptions({
     agent: fileURLToPath(import.meta.url),
     agentName: 'interview-agent',
+    // Default is 10s which is too short on Windows — loading onnxruntime +
+    // bundled Silero VAD in the child process can take 15–20s on cold start.
+    initializeProcessTimeout: 30_000,
   }),
 );
